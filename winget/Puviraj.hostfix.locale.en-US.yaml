@@ -1,0 +1,24 @@
+PackageIdentifier: Puviraj.hostfix
+PackageVersion: 1.0.0
+PackageLocale: en-US
+Publisher: Puviraj
+PublisherUrl: https://github.com/Puviraj-2004
+PackageName: hostfix
+PackageUrl: https://github.com/Puviraj-2004/hostfix
+License: MIT
+LicenseUrl: https://github.com/Puviraj-2004/hostfix/blob/main/LICENSE
+ShortDescription: Fast, project-aware developer machine diagnostics, PATH sanitizer, and environment repair CLI.
+Description: |
+  hostfix is a developer machine and workspace diagnostics tool.
+  It answers in under 1 second whether a host machine can build and run a project repository,
+  detecting duplicate/dead PATH entries, tool shadowing, and dependency audit risks with safe rollback.
+Tags:
+  - cli
+  - developer-tools
+  - diagnostics
+  - environment
+  - path
+  - dotnet
+  - nodejs
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0
