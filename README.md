@@ -7,6 +7,10 @@
 
 `hostfix` is a project-aware developer-environment diagnostic CLI. Run it from a repository to check the machine, project configuration, dependencies, environment files, and common development ports. It separates actionable failures from harmless differences and offers one deliberate, reversible repair: cleaning the Windows **User PATH**.
 
+## Versioning
+
+The source package version is currently **1.0.2**. Versions follow `MAJOR.MINOR.PATCH` and are defined in [`src/PuviDoctor.Cli/PuviDoctor.Cli.csproj`](src/PuviDoctor.Cli/PuviDoctor.Cli.csproj). The Git tag and package version must always match—for example, version `1.0.2` is released with tag `v1.0.2`.
+
 ## Quick start
 
 Install the .NET global tool:
@@ -125,6 +129,38 @@ GitHub Actions example:
 - name: Check developer-environment regressions
   run: hostfix ci
 ```
+
+## Releases
+
+This repository has two GitHub Actions workflows:
+
+| Workflow | Trigger | What it does |
+| --- | --- | --- |
+| [`ci.yml`](.github/workflows/ci.yml) | Pushes and pull requests to `main` | Restores, builds, tests, and runs `hostfix ci` on Windows, Linux, and macOS. |
+| [`release.yml`](.github/workflows/release.yml) | A pushed `v*` tag | Publishes the NuGet global tool through NuGet Trusted Publishing and creates a GitHub Release with self-contained binaries and SHA-256 checksum files. |
+
+Each tagged release produces:
+
+- NuGet global tool: `hostfix`.
+- `hostfix-win-x64.exe` for Windows x64.
+- `hostfix-linux-x64` for Linux x64.
+- `hostfix-osx-arm64` for Apple Silicon Macs.
+- A matching `.sha256` file for every standalone binary.
+
+### Publish a release
+
+1. Update the `<Version>` value in `src/PuviDoctor.Cli/PuviDoctor.Cli.csproj`.
+2. Commit and push the release preparation change to `main`.
+3. Create and push the matching tag:
+
+```bash
+git tag v1.0.3
+git push origin v1.0.3
+```
+
+4. Watch the **Release Multi-Platform Binaries & NuGet Package** workflow in GitHub Actions. A successful run publishes the package and creates the GitHub Release.
+
+> NuGet publishing uses the repository's configured Trusted Publishing policy. No long-lived NuGet API key is stored in the repository.
 
 ## Options
 
