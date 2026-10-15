@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using PuviDoctor.Core.Abstractions;
 using PuviDoctor.Core.Models;
 using PuviDoctor.Core.Platform;
@@ -5,10 +6,10 @@ using PuviDoctor.Core.Platform;
 namespace PuviDoctor.Core.Fixes;
 
 /// <summary>
-/// Safe, reversible fix for Windows User PATH anomalies (duplicates and dead entries).
-/// Preserves REG_EXPAND_SZ, persists before-state session journal, and supports rollback.
+/// Safe, reversible fix for Windows User PATH anomalies.
+/// Preserves REG_EXPAND_SZ, prevents multiple overwrite regressions, and ensures byte-identical rollback.
 /// </summary>
-public sealed class WindowsPathFix : IFix
+public sealed partial class WindowsPathFix : IFix
 {
     private readonly IRegistryService _registryService;
     private readonly IEnvironmentService _environmentService;
@@ -58,6 +59,14 @@ public sealed class WindowsPathFix : IFix
             return;
         }
 
+        var cleanedPath = ComputeCleanedPath(snapshot.RawValue);
+
+        // If the path is already clean, do NOT create a redundant journal or touch the registry!
+        if (string.Equals(snapshot.RawValue, cleanedPath, StringComparison.Ordinal))
+        {
+            return;
+        }
+
         // 1. Mandatory safety: Journal before-state to disk BEFORE mutating registry
         var sessionId = DateTimeOffset.UtcNow.ToString("yyyyMMdd_HHmmssfff");
         var journal = new FixSessionJournal(
@@ -70,10 +79,7 @@ public sealed class WindowsPathFix : IFix
 
         await FixJournalStore.SaveSessionAsync(journal, cancellationToken);
 
-        // 2. Compute sanitized PATH
-        var cleanedPath = ComputeCleanedPath(snapshot.RawValue);
-
-        // 3. Write directly to HKCU\Environment (never setx)
+        // 2. Write directly to HKCU\Environment (never setx)
         _registryService.SetUserPath(cleanedPath, snapshot.Kind);
     }
 
@@ -92,7 +98,7 @@ public sealed class WindowsPathFix : IFix
         );
     }
 
-    private string ComputeCleanedPath(string rawPath)
+    public string ComputeCleanedPath(string rawPath)
     {
         var entries = rawPath.Split(';', StringSplitOptions.RemoveEmptyEntries);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -106,7 +112,6 @@ public sealed class WindowsPathFix : IFix
                 continue;
             }
 
-            // Remove trailing slashes for duplicate deduplication
             var normalizedKey = trimmed.TrimEnd('\\', '/').ToUpperInvariant();
 
             // 1. Filter out duplicates
@@ -115,8 +120,16 @@ public sealed class WindowsPathFix : IFix
                 continue;
             }
 
-            // 2. Filter out non-existent folders (unless it's an unexpanded variable like %USERPROFILE%)
-            if (!trimmed.StartsWith('%') && !_environmentService.DirectoryExists(trimmed))
+            // 2. Check existence safely:
+            // If the path contains ANY unexpanded environment variable (e.g. %USERPROFILE% or C:\tools\%BIN%),
+            // it MUST be preserved because it cannot be statically verified without context.
+            if (ContainsEnvVariableRegex().IsMatch(trimmed))
+            {
+                keptEntries.Add(trimmed);
+                continue;
+            }
+
+            if (!_environmentService.DirectoryExists(trimmed))
             {
                 continue;
             }
@@ -126,4 +139,7 @@ public sealed class WindowsPathFix : IFix
 
         return string.Join(";", keptEntries);
     }
+
+    [GeneratedRegex(@"%[A-Za-z0-9_]+%")]
+    private static partial Regex ContainsEnvVariableRegex();
 }

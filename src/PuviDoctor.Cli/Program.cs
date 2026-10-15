@@ -295,11 +295,17 @@ public static class Program
         ConsoleRenderer.RenderHeader(projectName, "1.0.0");
         ConsoleRenderer.RenderReport(report);
 
-        var fixableExecutions = report.Executions.Where(e => e.Result.Fix is not null).ToList();
+        // Deduplicate fixes by their concrete Type to prevent double-applying the same operation
+        var fixableExecutions = report.Executions
+            .Where(e => e.Result.Fix is not null)
+            .GroupBy(e => e.Result.Fix!.GetType())
+            .Select(g => g.First())
+            .ToList();
+
         if (fixableExecutions.Count == 0) return report.ExitCode;
 
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine($"[bold blue]{fixableExecutions.Count} auto-fixable issue(s) available.[/]");
+        AnsiConsole.MarkupLine($"[bold blue]{fixableExecutions.Count} distinct auto-fixable operation(s) available.[/]");
 
         if (isDryRun)
         {

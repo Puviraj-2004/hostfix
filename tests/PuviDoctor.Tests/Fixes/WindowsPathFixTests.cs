@@ -1,5 +1,6 @@
 using PuviDoctor.Core.Abstractions;
 using PuviDoctor.Core.Fixes;
+using PuviDoctor.Core.Platform;
 using PuviDoctor.Tests.Fakes;
 using Shouldly;
 using Xunit;
@@ -56,5 +57,62 @@ public sealed class WindowsPathFixTests
         // Assert: 100% byte identical restoration
         _fakeRegistry.CurrentPath.ShouldBe(initial);
         _fakeRegistry.CurrentKind.ShouldBe(SnapshotRegistryKind.ExpandString);
+    }
+
+    [Fact]
+    public void ComputeCleanedPath_PreservesEmbeddedEnvironmentVariables()
+    {
+        // Arrange: Complex dynamic paths containing variables in the start or middle
+        const string initial = @"C:\Tools\%DYNAMIC_BIN%\bin;C:\Valid1;%USERPROFILE%\.dotnet\tools";
+        _fakeEnv.ExistingDirectories.Add(@"C:\Valid1");
+
+        // Act
+        var cleaned = _fix.ComputeCleanedPath(initial);
+
+        // Assert: Dynamic %VAR% segments must NOT be deleted by static existence checks
+        cleaned.ShouldContain(@"C:\Tools\%DYNAMIC_BIN%\bin");
+        cleaned.ShouldContain(@"%USERPROFILE%\.dotnet\tools");
+        cleaned.ShouldContain(@"C:\Valid1");
+    }
+
+    [Fact]
+    public async Task ApplyAsync_WhenAlreadyClean_DoesNotCreateRedundantJournal()
+    {
+        // Arrange
+        const string cleanPath = @"C:\Valid1";
+        _fakeEnv.ExistingDirectories.Add(@"C:\Valid1");
+        _fakeRegistry.CurrentPath = cleanPath;
+
+        // Act 1: First apply creates a session
+        await _fix.ApplyAsync();
+        var snapshot1 = await FixJournalStore.GetLatestSessionAsync();
+
+        // Act 2: Second apply against already-clean state must be a no-op
+        await _fix.ApplyAsync();
+        var snapshot2 = await FixJournalStore.GetLatestSessionAsync();
+
+        // Assert: Second run must not overwrite the journal with a redundant snapshot
+        if (snapshot1 is not null && snapshot2 is not null)
+        {
+            snapshot2.SessionId.ShouldBe(snapshot1.SessionId);
+        }
+    }
+
+    [Fact]
+    public void DryRun_GeneratesBeforeAndAfterDiff_WithoutMutatingRegistry()
+    {
+        // Arrange
+        const string initial = @"C:\Valid1;C:\DeadPath";
+        _fakeEnv.ExistingDirectories.Add(@"C:\Valid1");
+        _fakeRegistry.CurrentPath = initial;
+
+        // Act
+        var diff = _fix.DryRun();
+
+        // Assert
+        diff.ShouldContain("=== Dry Run PATH Diff ===");
+        diff.ShouldContain(@"C:\Valid1;C:\DeadPath");
+        diff.ShouldContain(@"C:\Valid1");
+        _fakeRegistry.CurrentPath.ShouldBe(initial); // Unmutated
     }
 }

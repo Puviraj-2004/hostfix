@@ -5,9 +5,13 @@ using IOPath = System.IO.Path;
 
 namespace PuviDoctor.Core.Platform;
 
+/// <summary>
+/// Manages loading and saving the repository CI baseline file (.hostfix.baseline.json).
+/// Allows teams to accept existing historical debt without blocking CI on new regressions.
+/// </summary>
 public static class BaselineStore
 {
-    private const string BaselineFileName = ".hostfix.baseline.json";
+    public const string BaselineFileName = ".hostfix.baseline.json";
 
     public static string GetBaselinePath(string projectRoot) => IOPath.Combine(projectRoot, BaselineFileName);
 
@@ -35,7 +39,13 @@ public static class BaselineStore
             AcceptedFindings: findings
         );
 
-        var json = JsonSerializer.Serialize(baseline, new JsonSerializerOptions { WriteIndented = true });
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
+
+        var json = JsonSerializer.Serialize(baseline, options);
         await File.WriteAllTextAsync(baselinePath, json, cancellationToken);
     }
 
@@ -55,6 +65,7 @@ public static class BaselineStore
         {
             PropertyNameCaseInsensitive = true
         };
+
         return JsonSerializer.Deserialize<PuviDoctorBaseline>(json, options);
     }
 }
