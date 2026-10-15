@@ -26,9 +26,15 @@ jobs:
       run: |
         dotnet pack src/PuviDoctor.Cli/PuviDoctor.Cli.csproj -c Release
 
+    - name: NuGet login (OIDC to temporary API key)
+      uses: NuGet/login@v1
+      id: nuget-login
+      with:
+        user: Puviraj
+
     - name: Push to NuGet.org via Trusted Publisher
       run: |
-        dotnet nuget push artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --skip-duplicate
+        dotnet nuget push artifacts/*.nupkg --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
   # Job 2: Build Multi-OS Standalone Binaries for GitHub Releases
   build-release:
