@@ -1,6 +1,7 @@
 ﻿using System.CommandLine;
 using PuviDoctor.Cli.Rendering;
 using PuviDoctor.Core.Abstractions;
+using PuviDoctor.Core.Checks.Dependencies;
 using PuviDoctor.Core.Checks.Path;
 using PuviDoctor.Core.Checks.Versions;
 using PuviDoctor.Core.Models;
@@ -15,13 +16,11 @@ public static class Program
 {
     public static async Task<int> Main(string[] args)
     {
-        // 1. Production platform services
         var envService = new SystemEnvironmentService();
         var processRunner = new SystemProcessRunner();
         var fileSystem = new SystemFileSystem();
         var registryService = new SystemRegistryService();
 
-        // 2. Health checks
         var pathChecks = new IHealthCheck[]
         {
             new DeadPathCheck(envService, registryService),
@@ -36,42 +35,44 @@ public static class Program
             new GitVersionCheck(processRunner)
         };
 
-        var allChecks = pathChecks.Concat(versionChecks).ToArray();
+        var dependencyChecks = new IHealthCheck[]
+        {
+            new LockfileCheck(fileSystem),
+            new NpmrcCheck(fileSystem),
+            new NpmAuditCheck(fileSystem, processRunner),
+            new NuGetVulnsCheck(fileSystem, processRunner)
+        };
 
-        // 3. Command Line Options
+        var allChecks = pathChecks
+            .Concat(versionChecks)
+            .Concat(dependencyChecks)
+            .ToArray();
+
+        // CLI Options
         var pathOption = new Option<DirectoryInfo?>(
             aliases: ["--path", "-p"],
             description: "Target directory of the repo to evaluate",
             getDefaultValue: () => new DirectoryInfo(Directory.GetCurrentDirectory())
         );
 
-        var fixOption = new Option<bool>(
-            name: "--fix",
-            description: "Apply safe fixes for identified issues (prompts for confirmation)"
-        );
-
-        var yesOption = new Option<bool>(
-            name: "--yes",
-            description: "Automatically confirm all fixes without prompts (for CI/scripts)"
-        );
-
-        var dryRunOption = new Option<bool>(
-            name: "--dry-run",
-            description: "Print exact before/after diff of proposed fixes without mutating machine"
-        );
+        var fixOption = new Option<bool>(name: "--fix", description: "Apply safe fixes for identified issues");
+        var yesOption = new Option<bool>(name: "--yes", description: "Automatically confirm all fixes without prompts");
+        var dryRunOption = new Option<bool>(name: "--dry-run", description: "Print exact before/after diff of proposed fixes");
+        var jsonOption = new Option<bool>(name: "--json", description: "Produce machine-readable JSON output (schema: 1)");
 
         var rootCommand = new RootCommand("puvi-doctor: Developer machine and project diagnostics CLI");
         rootCommand.AddGlobalOption(pathOption);
         rootCommand.AddOption(fixOption);
         rootCommand.AddOption(yesOption);
         rootCommand.AddOption(dryRunOption);
+        rootCommand.AddOption(jsonOption);
 
         // Root action: Run doctor report + optional fix execution
-        rootCommand.SetHandler(async (DirectoryInfo? targetDir, bool isFix, bool isYes, bool isDryRun) =>
+        rootCommand.SetHandler(async (DirectoryInfo? targetDir, bool isFix, bool isYes, bool isDryRun, bool isJson) =>
         {
             var dir = targetDir?.FullName ?? Directory.GetCurrentDirectory();
-            Environment.ExitCode = await ExecuteDoctorFlowAsync(dir, allChecks, isFix, isYes, isDryRun);
-        }, pathOption, fixOption, yesOption, dryRunOption);
+            Environment.ExitCode = await ExecuteDoctorFlowAsync(dir, allChecks, isFix, isYes, isDryRun, isJson);
+        }, pathOption, fixOption, yesOption, dryRunOption, jsonOption);
 
         // Subcommand: puvi-doctor rollback
         var rollbackCommand = new Command("rollback", "Undo the last applied fix session from backup journal");
@@ -82,11 +83,11 @@ public static class Program
         rootCommand.Add(rollbackCommand);
 
         // Subcommand: puvi-doctor path
-        var pathCommand = new Command("path", "Run PATH sanity checks only (dead entries, duplicates, shadowing)");
+        var pathCommand = new Command("path", "Run PATH sanity checks only");
         pathCommand.SetHandler(async (DirectoryInfo? targetDir) =>
         {
             var dir = targetDir?.FullName ?? Directory.GetCurrentDirectory();
-            Environment.ExitCode = await ExecuteDoctorFlowAsync(dir, pathChecks, false, false, false);
+            Environment.ExitCode = await ExecuteDoctorFlowAsync(dir, pathChecks, false, false, false, false);
         }, pathOption);
         rootCommand.Add(pathCommand);
 
@@ -95,9 +96,18 @@ public static class Program
         versionsCommand.SetHandler(async (DirectoryInfo? targetDir) =>
         {
             var dir = targetDir?.FullName ?? Directory.GetCurrentDirectory();
-            Environment.ExitCode = await ExecuteDoctorFlowAsync(dir, versionChecks, false, false, false);
+            Environment.ExitCode = await ExecuteDoctorFlowAsync(dir, versionChecks, false, false, false, false);
         }, pathOption);
         rootCommand.Add(versionsCommand);
+
+        // Subcommand: puvi-doctor deps
+        var depsCommand = new Command("deps", "Run dependency vulnerability & lockfile triage only");
+        depsCommand.SetHandler(async (DirectoryInfo? targetDir) =>
+        {
+            var dir = targetDir?.FullName ?? Directory.GetCurrentDirectory();
+            Environment.ExitCode = await ExecuteDoctorFlowAsync(dir, dependencyChecks, false, false, false, false);
+        }, pathOption);
+        rootCommand.Add(depsCommand);
 
         try
         {
@@ -117,7 +127,8 @@ public static class Program
         IReadOnlyList<IHealthCheck> checks,
         bool isFix,
         bool isYes,
-        bool isDryRun)
+        bool isDryRun,
+        bool isJson)
     {
         var projectName = Path.GetFileName(projectDirectory.TrimEnd(
             Path.DirectorySeparatorChar,
@@ -128,18 +139,20 @@ public static class Program
             projectName = "workspace";
         }
 
-        ConsoleRenderer.RenderHeader(projectName);
-
         var context = new CheckContext(projectDirectory);
         var runner = new CheckRunner(checks);
         var report = await runner.RunAllAsync(context);
 
+        if (isJson)
+        {
+            Console.WriteLine(JsonRenderer.Render(report, projectName));
+            return report.ExitCode;
+        }
+
+        ConsoleRenderer.RenderHeader(projectName);
         ConsoleRenderer.RenderReport(report);
 
-        var fixableExecutions = report.Executions
-            .Where(e => e.Result.Fix is not null)
-            .ToList();
-
+        var fixableExecutions = report.Executions.Where(e => e.Result.Fix is not null).ToList();
         if (fixableExecutions.Count == 0)
         {
             return report.ExitCode;
@@ -148,7 +161,6 @@ public static class Program
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine($"[bold blue]{fixableExecutions.Count} auto-fixable issue(s) available.[/]");
 
-        // Handle --dry-run
         if (isDryRun)
         {
             AnsiConsole.MarkupLine("[bold yellow]=== Dry Run (No machine mutation will occur) ===[/]");
@@ -162,7 +174,6 @@ public static class Program
             return report.ExitCode;
         }
 
-        // Handle --fix
         if (isFix)
         {
             foreach (var execution in fixableExecutions)
@@ -170,12 +181,7 @@ public static class Program
                 var fix = execution.Result.Fix!;
                 AnsiConsole.MarkupLine($"\n[bold yellow]Target:[/] {execution.Check.Id} - {fix.Describe()}");
 
-                bool shouldApply = isYes;
-                if (!isYes)
-                {
-                    shouldApply = AnsiConsole.Confirm("Apply this fix safely (backup journal will be created)?", defaultValue: false);
-                }
-
+                bool shouldApply = isYes || AnsiConsole.Confirm("Apply this fix safely (backup journal will be created)?", defaultValue: false);
                 if (shouldApply)
                 {
                     AnsiConsole.MarkupLine("[yellow]Applying fix and persisting rollback journal...[/]");
