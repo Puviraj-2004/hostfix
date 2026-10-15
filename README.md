@@ -1,194 +1,127 @@
 # hostfix
 
-> Diagnose whether a developer machine is ready to build and run a repository—and explain exactly what needs attention.
+[![CI](https://github.com/Puviraj-2004/hostfix/actions/workflows/ci.yml/badge.svg)](https://github.com/Puviraj-2004/hostfix/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/Puviraj-2004/hostfix?label=latest%20release)](https://github.com/Puviraj-2004/hostfix/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-[![CI & Automated Test Matrix](https://github.com/Puviraj-2004/hostfix/actions/workflows/ci.yml/badge.svg)](https://github.com/Puviraj-2004/hostfix/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+## Download hostfix
 
-`hostfix` is a project-aware developer-environment diagnostic CLI. Run it from a repository to check the machine, project configuration, dependencies, environment files, and common development ports. It separates actionable failures from harmless differences and offers one deliberate, reversible repair: cleaning the Windows **User PATH**.
+Download the binary for your computer. No .NET SDK or Node.js installation is required to run the standalone binaries.
 
-## Versioning
-
-The source package version is currently **1.0.2**. Versions follow `MAJOR.MINOR.PATCH` and are defined in [`src/PuviDoctor.Cli/PuviDoctor.Cli.csproj`](src/PuviDoctor.Cli/PuviDoctor.Cli.csproj). The Git tag and package version must always match—for example, version `1.0.2` is released with tag `v1.0.2`.
-
-## Quick start
-
-Install the .NET global tool:
-
-```bash
-dotnet tool install -g hostfix
-```
-
-Run it in any repository:
-
-```bash
-cd path/to/your/repository
-hostfix
-```
-
-Target a repository without changing directory:
-
-```bash
-hostfix --path path/to/your/repository
-```
-
-Update or remove the tool:
-
-```bash
-dotnet tool update -g hostfix
-dotnet tool uninstall -g hostfix
-```
-
-> **Prerequisite:** .NET SDK 9 or later is required to run this version of the tool.
-
-## What hostfix checks
-
-Checks are project-aware: a Node-specific check is skipped when no `package.json` exists, and a .NET SDK check is skipped when no `global.json` exists.
-
-| Area | Checks | Why it matters |
+| Your computer | Download | Verify download |
 | --- | --- | --- |
-| PATH health | Dead entries, duplicate entries, executable shadowing | Finds stale directories and conflicting tool installations that make a different executable run than expected. |
-| Runtime versions | Node.js, .NET SDK, Git | Compares Node against `.nvmrc`, `.node-version`, or `package.json`; compares .NET against `global.json`; requires Git 2.30+. |
-| Dependency hygiene | Lockfiles, `.npmrc`, npm audit, NuGet vulnerabilities | Flags conflicting or missing lockfiles, missing `engine-strict`, production versus dev-only npm vulnerabilities, and vulnerable direct/transitive NuGet packages. |
-| Workspace hygiene | `.env` parity and common port collisions | Confirms `.env` includes required keys from `.env.example` without printing secret values, and checks ports `5173`, `5000`, and `8081`. |
+| Windows x64 | [Download `.exe`](https://github.com/Puviraj-2004/hostfix/releases/latest/download/hostfix-win-x64.exe) | [SHA-256](https://github.com/Puviraj-2004/hostfix/releases/latest/download/hostfix-win-x64.exe.sha256) |
+| Linux x64 | [Download binary](https://github.com/Puviraj-2004/hostfix/releases/latest/download/hostfix-linux-x64) | [SHA-256](https://github.com/Puviraj-2004/hostfix/releases/latest/download/hostfix-linux-x64.sha256) |
+| macOS Apple Silicon (M1/M2/M3/M4) | [Download binary](https://github.com/Puviraj-2004/hostfix/releases/latest/download/hostfix-osx-arm64) | [SHA-256](https://github.com/Puviraj-2004/hostfix/releases/latest/download/hostfix-osx-arm64.sha256) |
 
-## Everyday commands
+[View every release](https://github.com/Puviraj-2004/hostfix/releases)
 
-```bash
-# Run every applicable diagnostic for the current repository
-hostfix
+## Run it
 
-# Inspect only one category
-hostfix path
-hostfix versions
-hostfix deps
+### Windows
 
-# Get automation-friendly JSON (schema version 1)
-hostfix --json
+1. Download `hostfix-win-x64.exe`.
+2. Open PowerShell in the folder where it was downloaded.
+3. Run:
 
-# Create a shareable Markdown report in the target repository
-hostfix report --md
-
-# Prepare a fresh developer checkout: diagnose, then restore npm/.NET dependencies when applicable
-hostfix onboard
+```powershell
+.\hostfix-win-x64.exe
 ```
 
-`hostfix report --md` creates `HOSTFIX_REPORT.md` in the target repository.
+To check another project, give its folder path:
 
-## Safe PATH repair and rollback
-
-`hostfix` does **not** silently change your machine. Auto-repair is limited to the Windows **User PATH** and removes only duplicate entries and entries pointing to directories that no longer exist. Entries containing environment variables such as `%USERPROFILE%` are preserved.
-
-Preview the exact change first:
-
-```bash
-hostfix --dry-run
+```powershell
+.\hostfix-win-x64.exe --path "C:\path\to\your\project"
 ```
 
-Apply after confirmation:
+### Linux
 
 ```bash
-hostfix --fix
+chmod +x hostfix-linux-x64
+./hostfix-linux-x64
 ```
 
-For non-interactive scripts, explicitly opt in:
+### macOS (Apple Silicon)
 
 ```bash
-hostfix --fix --yes
+chmod +x hostfix-osx-arm64
+./hostfix-osx-arm64
 ```
 
-Before the registry is changed, hostfix saves the original Windows User PATH value and type in a local journal. Undo the most recent repair with:
+> macOS may block an app downloaded from the internet. If prompted, open **System Settings → Privacy & Security** and choose **Open Anyway** for hostfix.
 
-```bash
-hostfix rollback
+## What to run
+
+Run hostfix from the root folder of the project you want to check.
+
+| Goal | Command after installation on PATH | Windows download command |
+| --- | --- | --- |
+| Check everything | `hostfix` | `.\hostfix-win-x64.exe` |
+| Check PATH issues only | `hostfix path` | `.\hostfix-win-x64.exe path` |
+| Check Node, .NET, and Git versions | `hostfix versions` | `.\hostfix-win-x64.exe versions` |
+| Check lockfiles and vulnerabilities | `hostfix deps` | `.\hostfix-win-x64.exe deps` |
+| Save a Markdown report | `hostfix report --md` | `.\hostfix-win-x64.exe report --md` |
+| Get JSON output for scripts | `hostfix --json` | `.\hostfix-win-x64.exe --json` |
+| Set up a fresh checkout | `hostfix onboard` | `.\hostfix-win-x64.exe onboard` |
+
+## Fix PATH problems safely (Windows only)
+
+hostfix only changes your machine when you explicitly ask it to. First preview the change:
+
+```powershell
+.\hostfix-win-x64.exe --dry-run
 ```
 
-## CI mode
+Apply the suggested safe PATH cleanup:
 
-CI mode reports only **new** warnings or failures relative to a repository baseline. This lets teams acknowledge existing findings while blocking new environment regressions.
+```powershell
+.\hostfix-win-x64.exe --fix
+```
 
-Create the baseline deliberately and commit it:
+hostfix creates a backup before changing the Windows User PATH. Undo the most recent cleanup with:
+
+```powershell
+.\hostfix-win-x64.exe rollback
+```
+
+## Use it in CI
+
+Create a baseline once in your project:
 
 ```bash
 hostfix ci --generate-baseline
-git add .hostfix.baseline.json
-git commit -m "chore: add hostfix baseline"
 ```
 
-Run the comparison in CI:
+Then run this in CI:
 
 ```bash
 hostfix ci
 ```
 
-Without `.hostfix.baseline.json`, CI runs in strict mode. It exits with code `2` when it finds a warning or failure. A clean result exits with `0`.
+CI passes when there are no new warnings or failures compared with the saved baseline.
 
-GitHub Actions example:
+## Checksum verification
 
-```yaml
-- name: Check developer-environment regressions
-  run: hostfix ci
+Compare your downloaded binary with the matching SHA-256 file from the table above.
+
+**Windows**
+
+```powershell
+Get-FileHash .\hostfix-win-x64.exe -Algorithm SHA256
 ```
 
-## Releases
-
-This repository has two GitHub Actions workflows:
-
-| Workflow | Trigger | What it does |
-| --- | --- | --- |
-| [`ci.yml`](.github/workflows/ci.yml) | Pushes and pull requests to `main` | Restores, builds, tests, and runs `hostfix ci` on Windows, Linux, and macOS. |
-| [`release.yml`](.github/workflows/release.yml) | A pushed `v*` tag | Publishes the NuGet global tool through NuGet Trusted Publishing and creates a GitHub Release with self-contained binaries and SHA-256 checksum files. |
-
-Each tagged release produces:
-
-- NuGet global tool: `hostfix`.
-- `hostfix-win-x64.exe` for Windows x64.
-- `hostfix-linux-x64` for Linux x64.
-- `hostfix-osx-arm64` for Apple Silicon Macs.
-- A matching `.sha256` file for every standalone binary.
-
-### Publish a release
-
-1. Update the `<Version>` value in `src/PuviDoctor.Cli/PuviDoctor.Cli.csproj`.
-2. Commit and push the release preparation change to `main`.
-3. Create and push the matching tag:
+**Linux**
 
 ```bash
-git tag v1.0.3
-git push origin v1.0.3
+sha256sum hostfix-linux-x64
 ```
 
-4. Watch the **Release Multi-Platform Binaries & NuGet Package** workflow in GitHub Actions. A successful run publishes the package and creates the GitHub Release.
-
-> NuGet publishing uses the repository's configured Trusted Publishing policy. No long-lived NuGet API key is stored in the repository.
-
-## Options
-
-| Option | Meaning |
-| --- | --- |
-| `-p`, `--path <path>` | Repository directory to inspect. Defaults to the current directory. |
-| `--json` | Emit machine-readable diagnostic output. |
-| `--dry-run` | Show the proposed Windows User PATH repair without changing anything. |
-| `--fix` | Prompt to apply available safe repairs. |
-| `--yes` | Confirm all repairs when used with `--fix`. |
-| `--help` | Show the complete command help. |
-
-## Scope and safety notes
-
-- Diagnostics run on Windows, Linux, and macOS; the automated test matrix validates all three.
-- The only machine-configuration mutation is the opt-in Windows User PATH repair described above. It does not run `npm audit fix`, modify dependency manifests, kill processes, or read/print `.env` values.
-- npm and NuGet vulnerability checks may access their package registries and can report a warning when those services are unavailable.
-- `onboard` restores dependencies with `npm ci` (falling back to `npm install`) and `dotnet restore` when the target project needs them. Review its output before treating the workspace as ready.
-
-## Develop locally
+**macOS**
 
 ```bash
-git clone https://github.com/Puviraj-2004/hostfix.git
-cd hostfix
-dotnet test -c Release
-dotnet run --project src/PuviDoctor.Cli -- --help
+shasum -a 256 hostfix-osx-arm64
 ```
 
 ## License
 
-Distributed under the [MIT License](LICENSE).
+[MIT License](LICENSE)
