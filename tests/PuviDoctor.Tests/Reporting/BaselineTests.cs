@@ -36,7 +36,7 @@ public sealed class BaselineTests
         }
         """;
 
-        _fakeFs.AddFile(IOPath.Combine(ProjectRoot, ".puvi-doctor.baseline.json"), baselineJson);
+        _fakeFs.AddFile(IOPath.Combine(ProjectRoot, ".hostfix.baseline.json"), baselineJson);
 
         // Act
         var baseline = await BaselineStore.LoadBaselineAsync(ProjectRoot, _fakeFs);

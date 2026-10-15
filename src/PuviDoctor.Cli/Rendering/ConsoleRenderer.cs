@@ -9,12 +9,11 @@ namespace PuviDoctor.Cli.Rendering;
 /// </summary>
 public static class ConsoleRenderer
 {
-    public static void RenderHeader(string projectName, string version = "0.1.0")
+    public static void RenderHeader(string projectName, string version = "1.0.0")
     {
-        AnsiConsole.MarkupLine($"[bold blue]puvi-doctor v{version}[/] | project: [yellow]{Markup.Escape(projectName)}[/]");
+        AnsiConsole.MarkupLine($"[bold blue]hostfix v{version}[/] | project: [yellow]{Markup.Escape(projectName)}[/]");
         AnsiConsole.WriteLine();
     }
-
     public static void RenderReport(HealthReport report)
     {
         // Group checks by category (e.g. "Path" or "Version")

@@ -7,7 +7,7 @@ namespace PuviDoctor.Core.Platform;
 
 public static class BaselineStore
 {
-    private const string BaselineFileName = ".puvi-doctor.baseline.json";
+    private const string BaselineFileName = ".hostfix.baseline.json";
 
     public static string GetBaselinePath(string projectRoot) => IOPath.Combine(projectRoot, BaselineFileName);
 

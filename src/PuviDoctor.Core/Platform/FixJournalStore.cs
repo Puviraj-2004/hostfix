@@ -8,7 +8,7 @@ public static class FixJournalStore
     private static string GetSessionsDirectory()
     {
         var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var dir = Path.Combine(userProfile, ".puvi-doctor", "sessions");
+        var dir = Path.Combine(userProfile, ".hostfix", "sessions");
         Directory.CreateDirectory(dir);
         return dir;
     }

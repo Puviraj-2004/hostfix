@@ -6,11 +6,19 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     
-    <!-- Global .NET Tool Packaging Settings -->
+    <!-- Version & Metadata -->
+    <Version>1.0.0</Version>
+    <Authors>Puviraj</Authors>
+    <Company>Puviraj</Company>
+    <Description>Fast, project-aware developer machine diagnostics, PATH sanitizer, and environment repair CLI.</Description>
+    <PackageProjectUrl>https://github.com/Puviraj-2004/hostfix</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Puviraj-2004/hostfix</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+
+    <!-- Global .NET Tool Packaging: CLI command name is 'hostfix' -->
     <PackAsTool>true</PackAsTool>
-    <ToolCommandName>puvi-doctor</ToolCommandName>
-    <PackageId>puvi-doctor</PackageId>
-    <Version>0.1.0</Version>
+    <ToolCommandName>hostfix</ToolCommandName>
+    <PackageId>hostfix</PackageId>
     <PackageOutputPath>../../artifacts</PackageOutputPath>
   </PropertyGroup>
 

@@ -12,10 +12,10 @@ public static class MarkdownRenderer
     {
         var sb = new StringBuilder();
 
-        sb.AppendLine($"# Workspace Health Report: {projectName}");
+        sb.AppendLine($"# Workspace Health Report (hostfix): {projectName}");
         sb.AppendLine();
         sb.AppendLine($"- **Generated At:** {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
-        sb.AppendLine($"- **PuviDoctor Version:** v0.4.0");
+        sb.AppendLine($"- **Hostfix Version:** v1.0.0");
         sb.AppendLine($"- **Health Score:** `{report.Score}/{report.MaxScore}`");
         sb.AppendLine($"- **Exit Code:** `{report.ExitCode}`");
         sb.AppendLine();
@@ -58,7 +58,7 @@ public static class MarkdownRenderer
 
         sb.AppendLine();
         sb.AppendLine("---");
-        sb.AppendLine("*Generated automatically by [puvi-doctor](https://github.com/inspire-associates/puvi-doctor)*");
+        sb.AppendLine("*Generated automatically by [hostfix](https://github.com/Puviraj-2004/hostfix)*");
 
         return sb.ToString();
     }

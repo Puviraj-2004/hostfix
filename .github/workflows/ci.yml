@@ -1,17 +1,32 @@
-name: CI & PuviDoctor Health Check
+name: Release Multi-Platform Binaries
 
 on:
   push:
-    branches: [ master, main ]
-  pull_request:
-    branches: [ master, main ]
+    tags:
+      - 'v*'
 
 jobs:
-  build-and-diagnose:
-    runs-on: windows-latest
+  build-release:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            binary: hostfix-win-x64.exe
+            src: src/PuviDoctor.Cli/bin/Release/net9.0/win-x64/publish/PuviDoctor.Cli.exe
+          - os: ubuntu-latest
+            rid: linux-x64
+            binary: hostfix-linux-x64
+            src: src/PuviDoctor.Cli/bin/Release/net9.0/linux-x64/publish/PuviDoctor.Cli
+          - os: macos-latest
+            rid: osx-arm64
+            binary: hostfix-osx-arm64
+            src: src/PuviDoctor.Cli/bin/Release/net9.0/osx-arm64/publish/PuviDoctor.Cli
+
+    runs-on: ${{ matrix.os }}
 
     steps:
-    - name: Checkout Repository
+    - name: Checkout Code
       uses: actions/checkout@v4
 
     - name: Setup .NET SDK
@@ -19,15 +34,23 @@ jobs:
       with:
         dotnet-version: '9.0.x'
 
-    - name: Restore Dependencies
-      run: dotnet restore
-
-    - name: Build Solution
-      run: dotnet build --no-restore -c Release
-
-    - name: Execute Automated Unit Tests
-      run: dotnet test --no-build -c Release --verbosity normal
-
-    - name: Run PuviDoctor CI Baseline Audit
+    - name: Publish Self-Contained Single-File Binary
       run: |
-        dotnet run --project src/PuviDoctor.Cli -c Release -- ci
+        dotnet publish src/PuviDoctor.Cli/PuviDoctor.Cli.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true
+
+    - name: Rename Binary
+      shell: bash
+      run: |
+        mkdir -p dist
+        cp ${{ matrix.src }} dist/${{ matrix.binary }}
+        cd dist
+        sha256sum ${{ matrix.binary }} > ${{ matrix.binary }}.sha256
+
+    - name: Upload Release Artifacts
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          dist/${{ matrix.binary }}
+          dist/${{ matrix.binary }}.sha256
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

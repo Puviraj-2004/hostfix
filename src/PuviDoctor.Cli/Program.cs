@@ -57,7 +57,6 @@ public static class Program
             .Concat(hygieneChecks)
             .ToArray();
 
-        // CLI Options
         var pathOption = new Option<DirectoryInfo?>(
             aliases: ["--path", "-p"],
             description: "Target directory of the repo to evaluate",
@@ -69,21 +68,19 @@ public static class Program
         var dryRunOption = new Option<bool>(name: "--dry-run", description: "Print exact before/after diff of proposed fixes");
         var jsonOption = new Option<bool>(name: "--json", description: "Produce machine-readable JSON output (schema: 1)");
 
-        var rootCommand = new RootCommand("puvi-doctor: Developer machine and project diagnostics CLI");
+        var rootCommand = new RootCommand("hostfix: Developer machine and project diagnostics CLI");
         rootCommand.AddGlobalOption(pathOption);
         rootCommand.AddOption(fixOption);
         rootCommand.AddOption(yesOption);
         rootCommand.AddOption(dryRunOption);
         rootCommand.AddOption(jsonOption);
 
-        // Root action
         rootCommand.SetHandler(async (DirectoryInfo? targetDir, bool isFix, bool isYes, bool isDryRun, bool isJson) =>
         {
             var dir = targetDir?.FullName ?? Directory.GetCurrentDirectory();
             Environment.ExitCode = await ExecuteDoctorFlowAsync(dir, allChecks, isFix, isYes, isDryRun, isJson);
         }, pathOption, fixOption, yesOption, dryRunOption, jsonOption);
 
-        // Subcommand: puvi-doctor rollback
         var rollbackCommand = new Command("rollback", "Undo the last applied fix session from backup journal");
         rollbackCommand.SetHandler(async () =>
         {
@@ -91,7 +88,6 @@ public static class Program
         });
         rootCommand.Add(rollbackCommand);
 
-        // Subcommand: puvi-doctor path
         var pathCommand = new Command("path", "Run PATH sanity checks only");
         pathCommand.SetHandler(async (DirectoryInfo? targetDir) =>
         {
@@ -100,7 +96,6 @@ public static class Program
         }, pathOption);
         rootCommand.Add(pathCommand);
 
-        // Subcommand: puvi-doctor versions
         var versionsCommand = new Command("versions", "Run runtime version checks only (.NET, Node, Git)");
         versionsCommand.SetHandler(async (DirectoryInfo? targetDir) =>
         {
@@ -109,7 +104,6 @@ public static class Program
         }, pathOption);
         rootCommand.Add(versionsCommand);
 
-        // Subcommand: puvi-doctor deps
         var depsCommand = new Command("deps", "Run dependency vulnerability & lockfile triage only");
         depsCommand.SetHandler(async (DirectoryInfo? targetDir) =>
         {
@@ -118,9 +112,8 @@ public static class Program
         }, pathOption);
         rootCommand.Add(depsCommand);
 
-        // Subcommand: puvi-doctor report --md
         var reportCommand = new Command("report", "Generate exportable diagnostic reports");
-        var mdOption = new Option<bool>(name: "--md", description: "Export report as markdown file (PUVI_DOCTOR_REPORT.md)");
+        var mdOption = new Option<bool>(name: "--md", description: "Export report as markdown file (HOSTFIX_REPORT.md)");
         reportCommand.AddOption(mdOption);
         reportCommand.SetHandler(async (DirectoryInfo? targetDir, bool exportMd) =>
         {
@@ -129,8 +122,7 @@ public static class Program
         }, pathOption, mdOption);
         rootCommand.Add(reportCommand);
 
-        // Subcommand: puvi-doctor ci
-        var ciCommand = new Command("ci", "CI mode: evaluates against .puvi-doctor.baseline.json; fails only on new regressions");
+        var ciCommand = new Command("ci", "CI mode: evaluates against .hostfix.baseline.json; fails only on new regressions");
         var generateBaselineOption = new Option<bool>(name: "--generate-baseline", description: "Record current issues as accepted baseline");
         ciCommand.AddOption(generateBaselineOption);
         ciCommand.SetHandler(async (DirectoryInfo? targetDir, bool genBaseline) =>
@@ -140,7 +132,6 @@ public static class Program
         }, pathOption, generateBaselineOption);
         rootCommand.Add(ciCommand);
 
-        // Subcommand: puvi-doctor onboard
         var onboardCommand = new Command("onboard", "One-command developer setup: runs diagnostics, applies safe fixes, restores dependencies");
         onboardCommand.SetHandler(async (DirectoryInfo? targetDir) =>
         {
@@ -156,7 +147,7 @@ public static class Program
         catch (Exception ex)
         {
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.Error.WriteLine($"puvi-doctor internal failure: {ex.Message}");
+            Console.Error.WriteLine($"hostfix internal failure: {ex.Message}");
             Console.ResetColor();
             return 3;
         }
@@ -175,7 +166,7 @@ public static class Program
         if (generateBaseline)
         {
             await BaselineStore.SaveBaselineAsync(projectDirectory, report, fileSystem);
-            AnsiConsole.MarkupLine("[green bold][[SUCCESS]][/] Generated accepted baseline at [yellow].puvi-doctor.baseline.json[/]");
+            AnsiConsole.MarkupLine("[green bold][[SUCCESS]][/] Generated accepted baseline at [yellow].hostfix.baseline.json[/]");
             return 0;
         }
 
@@ -187,7 +178,6 @@ public static class Program
             return report.ExitCode;
         }
 
-        // Compare current findings with accepted baseline
         var newRegressions = report.Executions
             .Where(e => e.Result.Status is CheckStatus.Warn or CheckStatus.Fail)
             .Where(e => !baseline.AcceptedFindings.Any(b => b.CheckId == e.Check.Id && b.Message == e.Result.Message))
@@ -214,7 +204,7 @@ public static class Program
         IProcessRunner processRunner,
         IFileSystem fileSystem)
     {
-        AnsiConsole.MarkupLine("[bold blue]puvi-doctor onboard:[/] Preparing developer workspace...");
+        AnsiConsole.MarkupLine("[bold blue]hostfix onboard:[/] Preparing developer workspace...");
         AnsiConsole.WriteLine();
 
         var context = new CheckContext(projectDirectory);
@@ -223,7 +213,6 @@ public static class Program
 
         ConsoleRenderer.RenderReport(report);
 
-        // Restore dependencies
         if (fileSystem.FileExists(Path.Combine(projectDirectory, "package.json")))
         {
             AnsiConsole.MarkupLine("\n[yellow]Restoring npm packages via 'npm ci'...[/]");
@@ -271,13 +260,13 @@ public static class Program
         if (exportMd)
         {
             var mdContent = MarkdownRenderer.Render(report, projectName);
-            var outputPath = Path.Combine(projectDirectory, "PUVI_DOCTOR_REPORT.md");
+            var outputPath = Path.Combine(projectDirectory, "HOSTFIX_REPORT.md");
             await File.WriteAllTextAsync(outputPath, mdContent);
             AnsiConsole.MarkupLine($"[green bold][[SUCCESS]][/] Markdown handover report generated: [yellow]{outputPath}[/]");
             return 0;
         }
 
-        ConsoleRenderer.RenderHeader(projectName, "0.5.0");
+        ConsoleRenderer.RenderHeader(projectName, "1.0.0");
         ConsoleRenderer.RenderReport(report);
         return report.ExitCode;
     }
@@ -303,7 +292,7 @@ public static class Program
             return report.ExitCode;
         }
 
-        ConsoleRenderer.RenderHeader(projectName, "0.5.0");
+        ConsoleRenderer.RenderHeader(projectName, "1.0.0");
         ConsoleRenderer.RenderReport(report);
 
         var fixableExecutions = report.Executions.Where(e => e.Result.Fix is not null).ToList();
@@ -337,7 +326,7 @@ public static class Program
                 {
                     AnsiConsole.MarkupLine("[yellow]Applying fix and persisting rollback journal...[/]");
                     await fix.ApplyAsync();
-                    AnsiConsole.MarkupLine("[green bold][[SUCCESS]][/] Fix applied. Rollback snapshot saved to ~/.puvi-doctor/sessions");
+                    AnsiConsole.MarkupLine("[green bold][[SUCCESS]][/] Fix applied. Rollback snapshot saved to ~/.hostfix/sessions");
                 }
                 else
                 {

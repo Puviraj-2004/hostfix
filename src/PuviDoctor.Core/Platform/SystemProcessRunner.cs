@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using PuviDoctor.Core.Abstractions;
 
@@ -6,6 +7,7 @@ namespace PuviDoctor.Core.Platform;
 
 /// <summary>
 /// Production process runner using direct executable invocation without shell wrapper.
+/// Automatically resolves Windows batch scripts (.cmd) for node tooling like npm and npx.
 /// </summary>
 public sealed class SystemProcessRunner : IProcessRunner
 {
@@ -14,9 +16,26 @@ public sealed class SystemProcessRunner : IProcessRunner
         IReadOnlyList<string> arguments,
         CancellationToken cancellationToken = default)
     {
+        var resolvedFileName = fileName;
+
+        // Windows quirk: npm, npx, yarn, pnpm are batch scripts (.cmd)
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) &&
+            !resolvedFileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) &&
+            !resolvedFileName.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) &&
+            !resolvedFileName.EndsWith(".bat", StringComparison.OrdinalIgnoreCase))
+        {
+            if (resolvedFileName.Equals("npm", StringComparison.OrdinalIgnoreCase) ||
+                resolvedFileName.Equals("npx", StringComparison.OrdinalIgnoreCase) ||
+                resolvedFileName.Equals("pnpm", StringComparison.OrdinalIgnoreCase) ||
+                resolvedFileName.Equals("yarn", StringComparison.OrdinalIgnoreCase))
+            {
+                resolvedFileName += ".cmd";
+            }
+        }
+
         var startInfo = new ProcessStartInfo
         {
-            FileName = fileName,
+            FileName = resolvedFileName,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
