@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build-release:
     strategy:
@@ -13,15 +16,15 @@ jobs:
           - os: windows-latest
             rid: win-x64
             binary: hostfix-win-x64.exe
-            src: src/PuviDoctor.Cli/bin/Release/net9.0/win-x64/publish/PuviDoctor.Cli.exe
+            publish_dir: publish/win-x64
           - os: ubuntu-latest
             rid: linux-x64
             binary: hostfix-linux-x64
-            src: src/PuviDoctor.Cli/bin/Release/net9.0/linux-x64/publish/PuviDoctor.Cli
+            publish_dir: publish/linux-x64
           - os: macos-latest
             rid: osx-arm64
             binary: hostfix-osx-arm64
-            src: src/PuviDoctor.Cli/bin/Release/net9.0/osx-arm64/publish/PuviDoctor.Cli
+            publish_dir: publish/osx-arm64
 
     runs-on: ${{ matrix.os }}
 
@@ -34,17 +37,28 @@ jobs:
       with:
         dotnet-version: '9.0.x'
 
-    - name: Publish Self-Contained Single-File Binary
+    - name: Publish Standalone Binary
       run: |
-        dotnet publish src/PuviDoctor.Cli/PuviDoctor.Cli.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true
+        dotnet publish src/PuviDoctor.Cli/PuviDoctor.Cli.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -o ${{ matrix.publish_dir }}
 
-    - name: Rename Binary
+    - name: Prepare Assets & Compute SHA-256 (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        mkdir -p dist
+        cp ${{ matrix.publish_dir }}/PuviDoctor.Cli.exe dist/${{ matrix.binary }}
+        $hash = (Get-FileHash -Algorithm SHA256 dist/${{ matrix.binary }}).Hash.ToLower()
+        Set-Content -Path dist/${{ matrix.binary }}.sha256 -Value "$hash  ${{ matrix.binary }}"
+
+    - name: Prepare Assets & Compute SHA-256 (Linux / macOS)
+      if: runner.os != 'Windows'
       shell: bash
       run: |
         mkdir -p dist
-        cp ${{ matrix.src }} dist/${{ matrix.binary }}
+        cp ${{ matrix.publish_dir }}/PuviDoctor.Cli dist/${{ matrix.binary }}
+        chmod +x dist/${{ matrix.binary }}
         cd dist
-        sha256sum ${{ matrix.binary }} > ${{ matrix.binary }}.sha256
+        shasum -a 256 ${{ matrix.binary }} > ${{ matrix.binary }}.sha256
 
     - name: Upload Release Artifacts
       uses: softprops/action-gh-release@v2
