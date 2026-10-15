@@ -192,7 +192,7 @@ public static class Program
         AnsiConsole.MarkupLine($"[red bold][[CI FAIL]][/] {newRegressions.Count} new regression(s) introduced beyond baseline!");
         foreach (var reg in newRegressions)
         {
-            AnsiConsole.MarkupLine($"  [red bold]Regression:[/] [{reg.Check.Id}] {reg.Result.Message}");
+            AnsiConsole.MarkupLine($"  [red bold]Regression:[/] {Markup.Escape($"[{reg.Check.Id}] {reg.Result.Message}")}");
         }
 
         return 2;
@@ -313,7 +313,7 @@ public static class Program
             foreach (var execution in fixableExecutions)
             {
                 var fix = execution.Result.Fix!;
-                AnsiConsole.MarkupLine($"[cyan bold]Check:[/] {execution.Check.Id}");
+                AnsiConsole.MarkupLine($"[cyan bold]Check:[/] {Markup.Escape(execution.Check.Id)}");
                 AnsiConsole.MarkupLine($"[grey]{Markup.Escape(fix.Describe())}[/]");
                 AnsiConsole.WriteLine(fix.DryRun());
             }
@@ -325,7 +325,7 @@ public static class Program
             foreach (var execution in fixableExecutions)
             {
                 var fix = execution.Result.Fix!;
-                AnsiConsole.MarkupLine($"\n[bold yellow]Target:[/] {execution.Check.Id} - {fix.Describe()}");
+                AnsiConsole.MarkupLine($"\n[bold yellow]Target:[/] {Markup.Escape(execution.Check.Id)} - {Markup.Escape(fix.Describe())}");
 
                 bool shouldApply = isYes || AnsiConsole.Confirm("Apply this fix safely (backup journal will be created)?", defaultValue: false);
                 if (shouldApply)
@@ -358,8 +358,8 @@ public static class Program
         }
 
         AnsiConsole.MarkupLine($"[bold yellow]Found rollback session:[/] {latest.SessionId} ({latest.TimestampUtc:yyyy-MM-dd HH:mm:ss} UTC)");
-        AnsiConsole.MarkupLine($"[grey]Original Action:[/] {latest.Description}");
-        AnsiConsole.MarkupLine($"[grey]Restoring Value:[/] {latest.BeforeUserPathSnapshot.RawValue}");
+        AnsiConsole.MarkupLine($"[grey]Original Action:[/] {Markup.Escape(latest.Description)}");
+        AnsiConsole.MarkupLine($"[grey]Restoring Value:[/] {Markup.Escape(latest.BeforeUserPathSnapshot.RawValue)}");
 
         var confirm = AnsiConsole.Confirm("Are you sure you want to rollback to this exact state?", defaultValue: true);
         if (!confirm)
