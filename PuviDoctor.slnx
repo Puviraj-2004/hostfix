@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PuviDoctor.Cli/PuviDoctor.Cli.csproj" />
+    <Project Path="src/PuviDoctor.Core/PuviDoctor.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PuviDoctor.Tests/PuviDoctor.Tests.csproj" />
+  </Folder>
+</Solution>

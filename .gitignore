@@ -1,0 +1,15 @@
+## Build and output folders
+bin/
+obj/
+artifacts/
+publish/
+
+## Visual Studio & VS Code caches
+.vs/
+.vscode/
+*.user
+*.suo
+
+## Test results
+TestResults/
+*.DotSettings.user
