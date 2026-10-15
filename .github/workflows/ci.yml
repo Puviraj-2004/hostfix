@@ -1,0 +1,33 @@
+name: CI & PuviDoctor Health Check
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  build-and-diagnose:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Restore Dependencies
+      run: dotnet restore
+
+    - name: Build Solution
+      run: dotnet build --no-restore -c Release
+
+    - name: Execute Automated Unit Tests
+      run: dotnet test --no-build -c Release --verbosity normal
+
+    - name: Run PuviDoctor CI Baseline Audit
+      run: |
+        dotnet run --project src/PuviDoctor.Cli -c Release -- ci

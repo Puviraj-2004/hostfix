@@ -129,6 +129,26 @@ public static class Program
         }, pathOption, mdOption);
         rootCommand.Add(reportCommand);
 
+        // Subcommand: puvi-doctor ci
+        var ciCommand = new Command("ci", "CI mode: evaluates against .puvi-doctor.baseline.json; fails only on new regressions");
+        var generateBaselineOption = new Option<bool>(name: "--generate-baseline", description: "Record current issues as accepted baseline");
+        ciCommand.AddOption(generateBaselineOption);
+        ciCommand.SetHandler(async (DirectoryInfo? targetDir, bool genBaseline) =>
+        {
+            var dir = targetDir?.FullName ?? Directory.GetCurrentDirectory();
+            Environment.ExitCode = await ExecuteCiCommandAsync(dir, allChecks, fileSystem, genBaseline);
+        }, pathOption, generateBaselineOption);
+        rootCommand.Add(ciCommand);
+
+        // Subcommand: puvi-doctor onboard
+        var onboardCommand = new Command("onboard", "One-command developer setup: runs diagnostics, applies safe fixes, restores dependencies");
+        onboardCommand.SetHandler(async (DirectoryInfo? targetDir) =>
+        {
+            var dir = targetDir?.FullName ?? Directory.GetCurrentDirectory();
+            Environment.ExitCode = await ExecuteOnboardCommandAsync(dir, allChecks, processRunner, fileSystem);
+        }, pathOption);
+        rootCommand.Add(onboardCommand);
+
         try
         {
             return await rootCommand.InvokeAsync(args);
@@ -140,6 +160,103 @@ public static class Program
             Console.ResetColor();
             return 3;
         }
+    }
+
+    private static async Task<int> ExecuteCiCommandAsync(
+        string projectDirectory,
+        IReadOnlyList<IHealthCheck> checks,
+        IFileSystem fileSystem,
+        bool generateBaseline)
+    {
+        var context = new CheckContext(projectDirectory);
+        var runner = new CheckRunner(checks);
+        var report = await runner.RunAllAsync(context);
+
+        if (generateBaseline)
+        {
+            await BaselineStore.SaveBaselineAsync(projectDirectory, report, fileSystem);
+            AnsiConsole.MarkupLine("[green bold][[SUCCESS]][/] Generated accepted baseline at [yellow].puvi-doctor.baseline.json[/]");
+            return 0;
+        }
+
+        var baseline = await BaselineStore.LoadBaselineAsync(projectDirectory, fileSystem);
+        if (baseline is null)
+        {
+            AnsiConsole.MarkupLine("[yellow bold][[CI]][/] No baseline found. Evaluating in strict mode.");
+            ConsoleRenderer.RenderReport(report);
+            return report.ExitCode;
+        }
+
+        // Compare current findings with accepted baseline
+        var newRegressions = report.Executions
+            .Where(e => e.Result.Status is CheckStatus.Warn or CheckStatus.Fail)
+            .Where(e => !baseline.AcceptedFindings.Any(b => b.CheckId == e.Check.Id && b.Message == e.Result.Message))
+            .ToList();
+
+        if (newRegressions.Count == 0)
+        {
+            AnsiConsole.MarkupLine($"[green bold][[CI PASS]][/] All findings match accepted baseline ({baseline.AcceptedFindings.Count} accepted items). Zero new regressions.");
+            return 0;
+        }
+
+        AnsiConsole.MarkupLine($"[red bold][[CI FAIL]][/] {newRegressions.Count} new regression(s) introduced beyond baseline!");
+        foreach (var reg in newRegressions)
+        {
+            AnsiConsole.MarkupLine($"  [red bold]Regression:[/] [{reg.Check.Id}] {reg.Result.Message}");
+        }
+
+        return 2;
+    }
+
+    private static async Task<int> ExecuteOnboardCommandAsync(
+        string projectDirectory,
+        IReadOnlyList<IHealthCheck> checks,
+        IProcessRunner processRunner,
+        IFileSystem fileSystem)
+    {
+        AnsiConsole.MarkupLine("[bold blue]puvi-doctor onboard:[/] Preparing developer workspace...");
+        AnsiConsole.WriteLine();
+
+        var context = new CheckContext(projectDirectory);
+        var runner = new CheckRunner(checks);
+        var report = await runner.RunAllAsync(context);
+
+        ConsoleRenderer.RenderReport(report);
+
+        // Restore dependencies
+        if (fileSystem.FileExists(Path.Combine(projectDirectory, "package.json")))
+        {
+            AnsiConsole.MarkupLine("\n[yellow]Restoring npm packages via 'npm ci'...[/]");
+            var npmResult = await processRunner.ExecuteAsync("npm", ["ci"]);
+            if (npmResult.ExitCode == 0)
+            {
+                AnsiConsole.MarkupLine("[green bold][[OK]][/] npm packages installed cleanly.");
+            }
+            else
+            {
+                AnsiConsole.MarkupLine("[yellow]npm ci failed; attempting 'npm install'...[/]");
+                await processRunner.ExecuteAsync("npm", ["install"]);
+            }
+        }
+
+        if (fileSystem.FileExists(Path.Combine(projectDirectory, "PuviDoctor.slnx")) ||
+            fileSystem.FileExists(Path.Combine(projectDirectory, "PuviDoctor.sln")) ||
+            Directory.GetFiles(projectDirectory, "*.csproj").Length > 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]Restoring .NET packages via 'dotnet restore'...[/]");
+            var dotnetResult = await processRunner.ExecuteAsync("dotnet", ["restore"]);
+            if (dotnetResult.ExitCode == 0)
+            {
+                AnsiConsole.MarkupLine("[green bold][[OK]][/] .NET packages restored cleanly.");
+            }
+        }
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine(report.ExitCode == 0
+            ? "[green bold]=== MACHINE READY: DAY 1 WORKSPACE READY TO BUILD & RUN ===[/]"
+            : "[yellow bold]=== WORKSPACE SETUP COMPLETE WITH NOTICES: Review issues above before starting ===[/]");
+
+        return report.ExitCode;
     }
 
     private static async Task<int> ExecuteReportCommandAsync(string projectDirectory, IReadOnlyList<IHealthCheck> checks, bool exportMd)
@@ -160,7 +277,7 @@ public static class Program
             return 0;
         }
 
-        ConsoleRenderer.RenderHeader(projectName, "0.4.0");
+        ConsoleRenderer.RenderHeader(projectName, "0.5.0");
         ConsoleRenderer.RenderReport(report);
         return report.ExitCode;
     }
@@ -186,7 +303,7 @@ public static class Program
             return report.ExitCode;
         }
 
-        ConsoleRenderer.RenderHeader(projectName, "0.4.0");
+        ConsoleRenderer.RenderHeader(projectName, "0.5.0");
         ConsoleRenderer.RenderReport(report);
 
         var fixableExecutions = report.Executions.Where(e => e.Result.Fix is not null).ToList();

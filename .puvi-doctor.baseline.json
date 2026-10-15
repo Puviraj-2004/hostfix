@@ -1,0 +1,26 @@
+{
+  "SchemaVersion": 1,
+  "CreatedAtUtc": "2026-10-15T10:17:11.0998382+00:00",
+  "AcceptedFindings": [
+    {
+      "CheckId": "path.dead-entries",
+      "Status": "WARN",
+      "Message": "3 entries in PATH point to directories that do not exist."
+    },
+    {
+      "CheckId": "path.duplicate-entries",
+      "Status": "WARN",
+      "Message": "29 duplicate entries found in PATH."
+    },
+    {
+      "CheckId": "path.shadowing",
+      "Status": "WARN",
+      "Message": "2 tool(s) have shadowing duplicates on PATH."
+    },
+    {
+      "CheckId": "version.node",
+      "Status": "FAIL",
+      "Message": "Node.js version mismatch: Installed v24.11.1, required \u002720.18.0\u0027 (from .nvmrc)."
+    }
+  ]
+}
