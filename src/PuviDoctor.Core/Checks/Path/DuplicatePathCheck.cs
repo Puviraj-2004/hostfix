@@ -1,4 +1,5 @@
 using PuviDoctor.Core.Abstractions;
+using PuviDoctor.Core.Fixes;
 using PuviDoctor.Core.Models;
 
 namespace PuviDoctor.Core.Checks.Path;
@@ -10,12 +11,14 @@ namespace PuviDoctor.Core.Checks.Path;
 public sealed class DuplicatePathCheck : IHealthCheck
 {
     private readonly IEnvironmentService _environmentService;
+    private readonly IRegistryService _registryService;
 
     public string Id => "path.duplicate-entries";
 
-    public DuplicatePathCheck(IEnvironmentService environmentService)
+    public DuplicatePathCheck(IEnvironmentService environmentService, IRegistryService registryService)
     {
         _environmentService = environmentService ?? throw new ArgumentNullException(nameof(environmentService));
+        _registryService = registryService ?? throw new ArgumentNullException(nameof(registryService));
     }
 
     public Task<CheckResult> RunAsync(CheckContext context, CancellationToken cancellationToken = default)
@@ -65,10 +68,15 @@ public sealed class DuplicatePathCheck : IHealthCheck
         var message = $"{duplicates.Count} duplicate entries found in PATH.";
         var details = string.Join(Environment.NewLine, duplicates.Select(d => $"  - {d}"));
 
+        IFix? fix = isWindows
+            ? new WindowsPathFix(_registryService, _environmentService, Id)
+            : null;
+
         return Task.FromResult(new CheckResult(
             CheckStatus.Warn,
             message,
-            details
+            details,
+            fix
         ));
     }
 
@@ -81,7 +89,6 @@ public sealed class DuplicatePathCheck : IHealthCheck
             return string.Empty;
         }
 
-        // Strip trailing directory separators for accurate comparison
         trimmed = trimmed.TrimEnd('\\', '/');
 
         return isWindows ? trimmed.ToUpperInvariant() : trimmed;

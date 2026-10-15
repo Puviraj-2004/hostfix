@@ -10,13 +10,15 @@ namespace PuviDoctor.Tests.Checks;
 public sealed class DeadPathCheckTests
 {
     private readonly FakeEnvironmentService _fakeEnv;
+    private readonly FakeRegistryService _fakeRegistry;
     private readonly DeadPathCheck _check;
     private readonly CheckContext _context;
 
     public DeadPathCheckTests()
     {
         _fakeEnv = new FakeEnvironmentService();
-        _check = new DeadPathCheck(_fakeEnv);
+        _fakeRegistry = new FakeRegistryService();
+        _check = new DeadPathCheck(_fakeEnv, _fakeRegistry);
         _context = new CheckContext(ProjectRootDirectory: Directory.GetCurrentDirectory());
     }
 
@@ -53,12 +55,13 @@ public sealed class DeadPathCheckTests
         result.Details.ShouldNotBeNull();
         result.Details!.ShouldContain(@"C:\Dead\Path1");
         result.Details!.ShouldContain(@"C:\Dead\Path2");
+        result.Fix.ShouldNotBeNull();
     }
 
     [Fact]
     public async Task RunAsync_HandlesQuotedAndTrailingSpacesGracefully()
     {
-        // Arrange: In C# verbatim strings (@""), double quotes inside are escaped by doubling them ("")
+        // Arrange
         _fakeEnv.ExistingDirectories.Add(@"C:\Program Files\Git\cmd");
         _fakeEnv.RawPath = @" ""C:\Program Files\Git\cmd"" ; C:\Dead\Directory ";
 

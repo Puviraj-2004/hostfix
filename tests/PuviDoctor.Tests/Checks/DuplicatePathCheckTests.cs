@@ -10,13 +10,15 @@ namespace PuviDoctor.Tests.Checks;
 public sealed class DuplicatePathCheckTests
 {
     private readonly FakeEnvironmentService _fakeEnv;
+    private readonly FakeRegistryService _fakeRegistry;
     private readonly DuplicatePathCheck _check;
     private readonly CheckContext _context;
 
     public DuplicatePathCheckTests()
     {
         _fakeEnv = new FakeEnvironmentService();
-        _check = new DuplicatePathCheck(_fakeEnv);
+        _fakeRegistry = new FakeRegistryService();
+        _check = new DuplicatePathCheck(_fakeEnv, _fakeRegistry);
         _context = new CheckContext(ProjectRootDirectory: Directory.GetCurrentDirectory());
     }
 
@@ -50,6 +52,7 @@ public sealed class DuplicatePathCheckTests
         result.Message.ShouldBe("1 duplicate entries found in PATH.");
         result.Details.ShouldNotBeNull();
         result.Details!.ShouldContain(@"c:\program files\node");
+        result.Fix.ShouldNotBeNull();
     }
 
     [Fact]
@@ -79,7 +82,7 @@ public sealed class DuplicatePathCheckTests
         // Act
         var result = await _check.RunAsync(_context);
 
-        // Assert: Distinct paths on Unix/Linux
+        // Assert
         result.Status.ShouldBe(CheckStatus.Ok);
     }
 }

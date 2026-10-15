@@ -1,4 +1,5 @@
 using PuviDoctor.Core.Abstractions;
+using PuviDoctor.Core.Fixes;
 using PuviDoctor.Core.Models;
 
 namespace PuviDoctor.Core.Checks.Path;
@@ -10,12 +11,14 @@ namespace PuviDoctor.Core.Checks.Path;
 public sealed class DeadPathCheck : IHealthCheck
 {
     private readonly IEnvironmentService _environmentService;
+    private readonly IRegistryService _registryService;
 
     public string Id => "path.dead-entries";
 
-    public DeadPathCheck(IEnvironmentService environmentService)
+    public DeadPathCheck(IEnvironmentService environmentService, IRegistryService registryService)
     {
         _environmentService = environmentService ?? throw new ArgumentNullException(nameof(environmentService));
+        _registryService = registryService ?? throw new ArgumentNullException(nameof(registryService));
     }
 
     public Task<CheckResult> RunAsync(CheckContext context, CancellationToken cancellationToken = default)
@@ -30,9 +33,7 @@ public sealed class DeadPathCheck : IHealthCheck
             ));
         }
 
-        // On Windows PATH entries are separated by ';', on Unix/macOS by ':'
         char pathSeparator = _environmentService.IsWindows() ? ';' : ':';
-
         var entries = rawPath.Split(pathSeparator, StringSplitOptions.RemoveEmptyEntries);
         var deadEntries = new List<string>();
 
@@ -64,10 +65,15 @@ public sealed class DeadPathCheck : IHealthCheck
         var message = $"{deadEntries.Count} entries in PATH point to directories that do not exist.";
         var details = string.Join(Environment.NewLine, deadEntries.Select(d => $"  - {d}"));
 
+        IFix? fix = _environmentService.IsWindows()
+            ? new WindowsPathFix(_registryService, _environmentService, Id)
+            : null;
+
         return Task.FromResult(new CheckResult(
             CheckStatus.Warn,
             message,
-            details
+            details,
+            fix
         ));
     }
 }
