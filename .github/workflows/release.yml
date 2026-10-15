@@ -1,4 +1,4 @@
-name: Release Multi-Platform Binaries
+name: Release Multi-Platform Binaries & NuGet Package
 
 on:
   push:
@@ -7,8 +7,30 @@ on:
 
 permissions:
   contents: write
+  id-token: write   # Required for NuGet Trusted Publisher OIDC
 
 jobs:
+  # Job 1: Build & Publish Global Tool to NuGet.org (Runs once on Ubuntu)
+  publish-nuget:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Pack NuGet Global Tool
+      run: |
+        dotnet pack src/PuviDoctor.Cli/PuviDoctor.Cli.csproj -c Release
+
+    - name: Push to NuGet.org via Trusted Publisher
+      run: |
+        dotnet nuget push artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+  # Job 2: Build Multi-OS Standalone Binaries for GitHub Releases
   build-release:
     strategy:
       matrix:
