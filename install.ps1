@@ -4,10 +4,9 @@ $ErrorActionPreference = 'Stop'
 Write-Host "Installing hostfix CLI..." -ForegroundColor Cyan
 
 $repo = "Puviraj-2004/hostfix"
-$version = "v1.0.0"
 $binaryName = "hostfix-win-x64.exe"
-$releaseUrl = "https://github.com/$repo/releases/download/$version/$binaryName"
-$checksumUrl = "https://github.com/$repo/releases/download/$version/$binaryName.sha256"
+$releaseUrl = "https://github.com/$repo/releases/latest/download/$binaryName"
+$checksumUrl = "https://github.com/$repo/releases/latest/download/$binaryName.sha256"
 
 $installDir = "$env:LOCALAPPDATA\Programs\hostfix"
 $targetExe = "$installDir\hostfix.exe"
@@ -19,7 +18,7 @@ if (!(Test-Path $installDir)) {
 }
 
 try {
-    Write-Host "Downloading $binaryName ($version)..." -ForegroundColor Yellow
+    Write-Host "Downloading the latest $binaryName release..." -ForegroundColor Yellow
     Invoke-WebRequest -Uri $releaseUrl -OutFile $tempExe -UseBasicParsing
     Invoke-WebRequest -Uri $checksumUrl -OutFile $tempChecksum -UseBasicParsing
 

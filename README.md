@@ -8,6 +8,32 @@
 
 Download the binary for your computer. No .NET SDK or Node.js installation is required to run the standalone binaries.
 
+### Install in one command (recommended)
+
+**Windows Terminal / PowerShell**
+
+```powershell
+irm https://raw.githubusercontent.com/Puviraj-2004/hostfix/main/install.ps1 | iex
+```
+
+The installer downloads the latest Windows release, verifies its SHA-256 checksum, adds `hostfix` to your User PATH, and keeps the executable at `%LOCALAPPDATA%\Programs\hostfix`.
+
+Close and reopen Windows Terminal, then confirm the installation:
+
+```powershell
+hostfix --help
+```
+
+**Linux or macOS**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Puviraj-2004/hostfix/main/install.sh | bash
+```
+
+This installs `hostfix` to `~/.local/bin`. Open a new terminal if your shell needs to reload its PATH.
+
+### Download manually
+
 | Your computer | Download | Verify download |
 | --- | --- | --- |
 | Windows x64 | [Download `.exe`](https://github.com/Puviraj-2004/hostfix/releases/latest/download/hostfix-win-x64.exe) | [SHA-256](https://github.com/Puviraj-2004/hostfix/releases/latest/download/hostfix-win-x64.exe.sha256) |

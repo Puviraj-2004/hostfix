@@ -4,7 +4,6 @@ set -euo pipefail
 echo "Installing hostfix CLI..."
 
 REPO="Puviraj-2004/hostfix"
-VERSION="v1.0.0"
 OS="$(uname -s)"
 ARCH="$(uname -m)"
 
@@ -30,13 +29,13 @@ fi
 INSTALL_DIR="$HOME/.local/bin"
 mkdir -p "$INSTALL_DIR"
 
-URL="https://github.com/$REPO/releases/download/$VERSION/$BINARY"
-CHECKSUM_URL="https://github.com/$REPO/releases/download/$VERSION/$BINARY.sha256"
+URL="https://github.com/$REPO/releases/latest/download/$BINARY"
+CHECKSUM_URL="https://github.com/$REPO/releases/latest/download/$BINARY.sha256"
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-echo "Downloading $BINARY ($VERSION)..."
+echo "Downloading the latest $BINARY release..."
 curl -f -sSL -o "$TMP_DIR/$BINARY" "$URL"
 curl -f -sSL -o "$TMP_DIR/$BINARY.sha256" "$CHECKSUM_URL"
 
