@@ -2,6 +2,7 @@
 using PuviDoctor.Cli.Rendering;
 using PuviDoctor.Core.Abstractions;
 using PuviDoctor.Core.Checks.Dependencies;
+using PuviDoctor.Core.Checks.Hygiene;
 using PuviDoctor.Core.Checks.Path;
 using PuviDoctor.Core.Checks.Versions;
 using PuviDoctor.Core.Models;
@@ -20,6 +21,7 @@ public static class Program
         var processRunner = new SystemProcessRunner();
         var fileSystem = new SystemFileSystem();
         var registryService = new SystemRegistryService();
+        var networkService = new SystemNetworkService();
 
         var pathChecks = new IHealthCheck[]
         {
@@ -43,9 +45,16 @@ public static class Program
             new NuGetVulnsCheck(fileSystem, processRunner)
         };
 
+        var hygieneChecks = new IHealthCheck[]
+        {
+            new EnvHygieneCheck(fileSystem),
+            new PortCollisionCheck(networkService)
+        };
+
         var allChecks = pathChecks
             .Concat(versionChecks)
             .Concat(dependencyChecks)
+            .Concat(hygieneChecks)
             .ToArray();
 
         // CLI Options
@@ -67,7 +76,7 @@ public static class Program
         rootCommand.AddOption(dryRunOption);
         rootCommand.AddOption(jsonOption);
 
-        // Root action: Run doctor report + optional fix execution
+        // Root action
         rootCommand.SetHandler(async (DirectoryInfo? targetDir, bool isFix, bool isYes, bool isDryRun, bool isJson) =>
         {
             var dir = targetDir?.FullName ?? Directory.GetCurrentDirectory();
@@ -109,6 +118,17 @@ public static class Program
         }, pathOption);
         rootCommand.Add(depsCommand);
 
+        // Subcommand: puvi-doctor report --md
+        var reportCommand = new Command("report", "Generate exportable diagnostic reports");
+        var mdOption = new Option<bool>(name: "--md", description: "Export report as markdown file (PUVI_DOCTOR_REPORT.md)");
+        reportCommand.AddOption(mdOption);
+        reportCommand.SetHandler(async (DirectoryInfo? targetDir, bool exportMd) =>
+        {
+            var dir = targetDir?.FullName ?? Directory.GetCurrentDirectory();
+            Environment.ExitCode = await ExecuteReportCommandAsync(dir, allChecks, exportMd);
+        }, pathOption, mdOption);
+        rootCommand.Add(reportCommand);
+
         try
         {
             return await rootCommand.InvokeAsync(args);
@@ -122,6 +142,29 @@ public static class Program
         }
     }
 
+    private static async Task<int> ExecuteReportCommandAsync(string projectDirectory, IReadOnlyList<IHealthCheck> checks, bool exportMd)
+    {
+        var projectName = Path.GetFileName(projectDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        if (string.IsNullOrEmpty(projectName)) projectName = "workspace";
+
+        var context = new CheckContext(projectDirectory);
+        var runner = new CheckRunner(checks);
+        var report = await runner.RunAllAsync(context);
+
+        if (exportMd)
+        {
+            var mdContent = MarkdownRenderer.Render(report, projectName);
+            var outputPath = Path.Combine(projectDirectory, "PUVI_DOCTOR_REPORT.md");
+            await File.WriteAllTextAsync(outputPath, mdContent);
+            AnsiConsole.MarkupLine($"[green bold][[SUCCESS]][/] Markdown handover report generated: [yellow]{outputPath}[/]");
+            return 0;
+        }
+
+        ConsoleRenderer.RenderHeader(projectName, "0.4.0");
+        ConsoleRenderer.RenderReport(report);
+        return report.ExitCode;
+    }
+
     private static async Task<int> ExecuteDoctorFlowAsync(
         string projectDirectory,
         IReadOnlyList<IHealthCheck> checks,
@@ -130,14 +173,8 @@ public static class Program
         bool isDryRun,
         bool isJson)
     {
-        var projectName = Path.GetFileName(projectDirectory.TrimEnd(
-            Path.DirectorySeparatorChar,
-            Path.AltDirectorySeparatorChar));
-
-        if (string.IsNullOrEmpty(projectName))
-        {
-            projectName = "workspace";
-        }
+        var projectName = Path.GetFileName(projectDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        if (string.IsNullOrEmpty(projectName)) projectName = "workspace";
 
         var context = new CheckContext(projectDirectory);
         var runner = new CheckRunner(checks);
@@ -149,14 +186,11 @@ public static class Program
             return report.ExitCode;
         }
 
-        ConsoleRenderer.RenderHeader(projectName);
+        ConsoleRenderer.RenderHeader(projectName, "0.4.0");
         ConsoleRenderer.RenderReport(report);
 
         var fixableExecutions = report.Executions.Where(e => e.Result.Fix is not null).ToList();
-        if (fixableExecutions.Count == 0)
-        {
-            return report.ExitCode;
-        }
+        if (fixableExecutions.Count == 0) return report.ExitCode;
 
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine($"[bold blue]{fixableExecutions.Count} auto-fixable issue(s) available.[/]");
