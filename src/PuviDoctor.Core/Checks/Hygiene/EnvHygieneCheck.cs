@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using PuviDoctor.Core.Abstractions;
+using PuviDoctor.Core.Fixes;
 using PuviDoctor.Core.Models;
 using IOPath = System.IO.Path;
 
@@ -38,11 +39,13 @@ public sealed partial class EnvHygieneCheck : IHealthCheck
 
         if (hasExample && !hasEnv)
         {
+            var keys = await ExtractKeyNamesAsync(examplePath, cancellationToken);
+            var template = string.Join(Environment.NewLine, keys.OrderBy(k => k).Select(k => $"{k}=")) + Environment.NewLine;
             return new CheckResult(
                 CheckStatus.Fail,
                 ".env file is missing (.env.example is present).",
-                "Fix: Copy .env.example to .env and configure local values before running the application."
-            );
+                "Hostfix can create a blank local .env template. Secret values are never copied or generated.",
+                new ProjectFileFix(Id, envPath, null, template, "Create a blank .env template from required key names."));
         }
 
         if (!hasExample && hasEnv)

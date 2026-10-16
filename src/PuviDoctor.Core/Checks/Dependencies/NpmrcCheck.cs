@@ -1,4 +1,5 @@
 using PuviDoctor.Core.Abstractions;
+using PuviDoctor.Core.Fixes;
 using PuviDoctor.Core.Models;
 using IOPath = System.IO.Path;
 
@@ -29,11 +30,12 @@ public sealed class NpmrcCheck : IHealthCheck
         var npmrcPath = IOPath.Combine(context.ProjectRootDirectory, ".npmrc");
         if (!_fileSystem.FileExists(npmrcPath))
         {
+            const string content = "engine-strict=true\n";
             return new CheckResult(
                 CheckStatus.Warn,
                 "No .npmrc file found in project root.",
-                "Recommendation: Add .npmrc with 'engine-strict=true' to enforce Node.js version rules during 'npm install'."
-            );
+                "Hostfix can add engine-strict=true safely.",
+                new ProjectFileFix(Id, npmrcPath, null, content, "Create .npmrc with engine-strict=true."));
         }
 
         var lines = (await _fileSystem.ReadAllTextAsync(npmrcPath, cancellationToken))
@@ -66,7 +68,7 @@ public sealed class NpmrcCheck : IHealthCheck
             return new CheckResult(
                 CheckStatus.Warn,
                 ".npmrc does not have 'engine-strict=true' configured.",
-                "Recommendation: Enable 'engine-strict=true' so builds fail immediately if a developer uses an incompatible Node.js version."
+                "Existing .npmrc files can contain private registry credentials, so Hostfix will not rewrite this file automatically."
             );
         }
 

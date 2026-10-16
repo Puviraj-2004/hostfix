@@ -6,5 +6,6 @@ namespace PuviDoctor.Core.Abstractions;
 public interface IFileSystem
 {
     bool FileExists(string path);
+    IEnumerable<string> GetFiles(string directory, string searchPattern);
     Task<string> ReadAllTextAsync(string path, CancellationToken cancellationToken = default);
 }

@@ -22,4 +22,12 @@ public interface IProcessRunner
         IReadOnlyList<string> arguments,
         CancellationToken cancellationToken = default
     );
+
+    /// <summary>Executes a command from a project directory without changing the caller process directory.</summary>
+    Task<ProcessOutput> ExecuteInDirectoryAsync(
+        string fileName,
+        IReadOnlyList<string> arguments,
+        string workingDirectory,
+        CancellationToken cancellationToken = default) =>
+        ExecuteAsync(fileName, arguments, cancellationToken);
 }

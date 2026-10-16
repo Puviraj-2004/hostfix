@@ -22,7 +22,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\PuviDoctor.Core\PuviDoctor.Core.csproj" />
-    <ProjectReference Include="..\..\src\PuviDoctor.Cli\PuviDoctor.Cli.csproj" />
   </ItemGroup>
 
 </Project>

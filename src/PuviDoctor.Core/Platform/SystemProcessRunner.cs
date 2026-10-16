@@ -14,7 +14,21 @@ public sealed class SystemProcessRunner : IProcessRunner
     public async Task<ProcessOutput> ExecuteAsync(
         string fileName,
         IReadOnlyList<string> arguments,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        await ExecuteCoreAsync(fileName, arguments, null, cancellationToken);
+
+    public async Task<ProcessOutput> ExecuteInDirectoryAsync(
+        string fileName,
+        IReadOnlyList<string> arguments,
+        string workingDirectory,
+        CancellationToken cancellationToken = default) =>
+        await ExecuteCoreAsync(fileName, arguments, workingDirectory, cancellationToken);
+
+    private static async Task<ProcessOutput> ExecuteCoreAsync(
+        string fileName,
+        IReadOnlyList<string> arguments,
+        string? workingDirectory,
+        CancellationToken cancellationToken)
     {
         var resolvedFileName = fileName;
 
@@ -49,6 +63,8 @@ public sealed class SystemProcessRunner : IProcessRunner
             UseShellExecute = false,
             CreateNoWindow = true
         };
+
+        if (!string.IsNullOrWhiteSpace(workingDirectory)) startInfo.WorkingDirectory = workingDirectory;
 
         if (isWindowsBatchShim)
         {

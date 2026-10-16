@@ -82,26 +82,30 @@ Run hostfix from the root folder of the project you want to check.
 
 | Goal | Command after installation on PATH | Windows download command |
 | --- | --- | --- |
-| Check everything | `hostfix` | `.\hostfix-win-x64.exe` |
-| Check PATH issues only | `hostfix path` | `.\hostfix-win-x64.exe path` |
+| Check this project | `hostfix` | `.\hostfix-win-x64.exe` |
+| Preview safe project repairs | `hostfix repair --dry-run` | `.\hostfix-win-x64.exe repair --dry-run` |
+| Repair safe project setup issues | `hostfix repair` | `.\hostfix-win-x64.exe repair` |
+| Optional machine/PATH diagnostics | `hostfix machine` | `.\hostfix-win-x64.exe machine` |
 | Check Node, .NET, and Git versions | `hostfix versions` | `.\hostfix-win-x64.exe versions` |
 | Check lockfiles and vulnerabilities | `hostfix deps` | `.\hostfix-win-x64.exe deps` |
 | Save a Markdown report | `hostfix report --md` | `.\hostfix-win-x64.exe report --md` |
 | Get JSON output for scripts | `hostfix --json` | `.\hostfix-win-x64.exe --json` |
 | Set up a fresh checkout | `hostfix onboard` | `.\hostfix-win-x64.exe onboard` |
 
-## Fix PATH problems safely (Windows only)
+## Fix machine PATH problems safely (Windows only)
+
+`hostfix` focuses on the current project. Machine-level PATH diagnostics are intentionally separate.
 
 hostfix only changes your machine when you explicitly ask it to. First preview the change:
 
 ```powershell
-.\hostfix-win-x64.exe --dry-run
+.\hostfix-win-x64.exe machine --dry-run
 ```
 
 Apply the suggested safe PATH cleanup:
 
 ```powershell
-.\hostfix-win-x64.exe --fix
+.\hostfix-win-x64.exe machine --fix
 ```
 
 hostfix creates a backup before changing the Windows User PATH. Undo the most recent cleanup with:
@@ -125,6 +129,14 @@ hostfix ci
 ```
 
 CI passes when there are no new warnings or failures compared with the saved baseline.
+
+## Safe project repair
+
+`hostfix repair` only changes deterministic project setup files such as `.npmrc`, `.gitignore`, and a missing `.env` template. It never upgrades a framework, invents secrets, or runs a breaking dependency update. Every repair is saved in `.hostfix/repair-sessions` and can be undone:
+
+```powershell
+hostfix rollback
+```
 
 ## Checksum verification
 

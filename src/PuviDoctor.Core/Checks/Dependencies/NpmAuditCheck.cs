@@ -57,7 +57,10 @@ public sealed class NpmAuditCheck : IHealthCheck
             );
         }
 
-        var fullSummary = ParseAuditSummary(fullOutput.StandardOutput);
+        if (!TryParseAuditSummary(fullOutput.StandardOutput, out var fullSummary))
+        {
+            return new CheckResult(CheckStatus.Warn, "npm audit returned an unreadable report.", "Hostfix cannot confirm dependency security until the npm registry returns valid audit JSON.");
+        }
         if (fullSummary.Total == 0)
         {
             return new CheckResult(
@@ -68,7 +71,10 @@ public sealed class NpmAuditCheck : IHealthCheck
 
         // 2. Run npm audit --json --omit=dev to find true production vulnerabilities
         var prodOutput = await _processRunner.ExecuteAsync("npm", ["audit", "--json", "--omit=dev"], cancellationToken);
-        var prodSummary = ParseAuditSummary(prodOutput.StandardOutput);
+        if (!TryParseAuditSummary(prodOutput.StandardOutput, out var prodSummary))
+        {
+            return new CheckResult(CheckStatus.Warn, "npm audit could not classify production dependencies.", "Hostfix cannot confirm production dependency security until npm audit --omit=dev returns valid JSON.");
+        }
 
         var devCount = Math.Max(0, fullSummary.Total - prodSummary.Total);
         var prodCount = prodSummary.Total;
@@ -80,7 +86,11 @@ public sealed class NpmAuditCheck : IHealthCheck
             Environment.NewLine +
             $"Dev-only:   {fullSummary.Critical - prodSummary.Critical} critical, {fullSummary.High - prodSummary.High} high, {fullSummary.Moderate - prodSummary.Moderate} moderate, {fullSummary.Low - prodSummary.Low} low." +
             Environment.NewLine +
-            "Note: Never run 'npm audit fix --force' blindly as it introduces breaking API changes.";
+            (prodCount == 0
+                ? "Production impact: none. Hostfix can attempt non-breaking package updates only in an isolated branch via 'hostfix repair --deep'."
+                : "Production dependency risk detected. Use 'hostfix repair --deep' to attempt non-breaking updates in an isolated branch.") +
+            Environment.NewLine +
+            "Breaking framework upgrades are never applied automatically.";
 
         // Production vulnerabilities with high or critical severity result in FAIL
         if (prodSummary.Critical > 0 || prodSummary.High > 0)
@@ -102,7 +112,7 @@ public sealed class NpmAuditCheck : IHealthCheck
 
     private sealed record AuditSummary(int Total, int Low, int Moderate, int High, int Critical);
 
-    private static AuditSummary ParseAuditSummary(string rawJson)
+    private static bool TryParseAuditSummary(string rawJson, out AuditSummary summary)
     {
         try
         {
@@ -116,7 +126,8 @@ public sealed class NpmAuditCheck : IHealthCheck
                 var crit = vulns.TryGetProperty("critical", out var c) ? c.GetInt32() : 0;
                 var total = vulns.TryGetProperty("total", out var t) ? t.GetInt32() : low + mod + high + crit;
 
-                return new AuditSummary(total, low, mod, high, crit);
+                summary = new AuditSummary(total, low, mod, high, crit);
+                return true;
             }
         }
         catch (JsonException)
@@ -124,6 +135,7 @@ public sealed class NpmAuditCheck : IHealthCheck
             // Invalid JSON
         }
 
-        return new AuditSummary(0, 0, 0, 0, 0);
+        summary = new AuditSummary(0, 0, 0, 0, 0);
+        return false;
     }
 }

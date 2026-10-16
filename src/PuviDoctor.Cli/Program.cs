@@ -48,11 +48,12 @@ public static class Program
         var hygieneChecks = new IHealthCheck[]
         {
             new EnvHygieneCheck(fileSystem),
+            new TrackedEnvironmentFileCheck(fileSystem, processRunner),
+            new GitIgnoreCheck(fileSystem),
             new PortCollisionCheck(networkService)
         };
 
-        var allChecks = pathChecks
-            .Concat(versionChecks)
+        var projectChecks = versionChecks
             .Concat(dependencyChecks)
             .Concat(hygieneChecks)
             .ToArray();
@@ -68,7 +69,7 @@ public static class Program
         var dryRunOption = new Option<bool>(name: "--dry-run", description: "Print exact before/after diff of proposed fixes");
         var jsonOption = new Option<bool>(name: "--json", description: "Produce machine-readable JSON output (schema: 1)");
 
-        var rootCommand = new RootCommand("hostfix: Developer machine and project diagnostics CLI");
+        var rootCommand = new RootCommand("hostfix: Project health and repair CLI");
         rootCommand.AddGlobalOption(pathOption);
         rootCommand.AddOption(fixOption);
         rootCommand.AddOption(yesOption);
@@ -78,29 +79,74 @@ public static class Program
         rootCommand.SetHandler(async (DirectoryInfo? targetDir, bool isFix, bool isYes, bool isDryRun, bool isJson) =>
         {
             var dir = targetDir?.FullName ?? Directory.GetCurrentDirectory();
-            Environment.ExitCode = await ExecuteDoctorFlowAsync(dir, allChecks, isFix, isYes, isDryRun, isJson);
+            Environment.ExitCode = await ExecuteDoctorFlowAsync(dir, projectChecks, fileSystem, isFix, isYes, isDryRun, isJson, showProjectProfile: true, machineMode: false);
         }, pathOption, fixOption, yesOption, dryRunOption, jsonOption);
 
         var rollbackCommand = new Command("rollback", "Undo the last applied fix session from backup journal");
-        rollbackCommand.SetHandler(async () =>
-        {
-            Environment.ExitCode = await ExecuteRollbackAsync(registryService);
-        });
-        rootCommand.Add(rollbackCommand);
-
-        var pathCommand = new Command("path", "Run PATH sanity checks only");
-        pathCommand.SetHandler(async (DirectoryInfo? targetDir) =>
+        rollbackCommand.SetHandler(async (DirectoryInfo? targetDir) =>
         {
             var dir = targetDir?.FullName ?? Directory.GetCurrentDirectory();
-            Environment.ExitCode = await ExecuteDoctorFlowAsync(dir, pathChecks, false, false, false, false);
+            Environment.ExitCode = await ExecuteRollbackAsync(dir, registryService);
         }, pathOption);
-        rootCommand.Add(pathCommand);
+        rootCommand.Add(rollbackCommand);
+
+        var machineCommand = new Command("machine", "Optional machine diagnostics and safe User PATH cleanup");
+        machineCommand.AddAlias("path"); // Backward compatible name for v1 users.
+        var machineFixOption = new Option<bool>(name: "--fix", description: "Apply safe User PATH fixes");
+        var machineYesOption = new Option<bool>(name: "--yes", description: "Automatically confirm all safe User PATH fixes");
+        var machineDryRunOption = new Option<bool>(name: "--dry-run", description: "Preview exact User PATH changes without modifying the machine");
+        var machineJsonOption = new Option<bool>(name: "--json", description: "Produce machine-readable JSON output (schema: 1)");
+        machineCommand.AddOption(machineFixOption);
+        machineCommand.AddOption(machineYesOption);
+        machineCommand.AddOption(machineDryRunOption);
+        machineCommand.AddOption(machineJsonOption);
+        machineCommand.SetHandler(async (DirectoryInfo? targetDir, bool isFix, bool isYes, bool isDryRun, bool isJson) =>
+        {
+            var dir = targetDir?.FullName ?? Directory.GetCurrentDirectory();
+            Environment.ExitCode = await ExecuteDoctorFlowAsync(dir, pathChecks, fileSystem, isFix, isYes, isDryRun, isJson, showProjectProfile: false, machineMode: true);
+        }, pathOption, machineFixOption, machineYesOption, machineDryRunOption, machineJsonOption);
+        rootCommand.Add(machineCommand);
+
+        var repairCommand = new Command("repair", "Apply every safe, project-owned repair and re-check the project");
+        var repairDryRunOption = new Option<bool>(name: "--dry-run", description: "Preview every project file change without modifying files");
+        var deepRepairOption = new Option<bool>(name: "--deep", description: "Create an isolated Git repair branch, attempt safe dependency updates, then verify it");
+        repairCommand.AddOption(repairDryRunOption);
+        repairCommand.AddOption(deepRepairOption);
+        repairCommand.SetHandler(async (DirectoryInfo? targetDir, bool isDryRun, bool deep) =>
+        {
+            var dir = targetDir?.FullName ?? Directory.GetCurrentDirectory();
+            if (deep)
+            {
+                var result = await new DeepRepairService(fileSystem, processRunner).RunAsync(dir);
+                AnsiConsole.MarkupLine(result.Started ? "[bold blue]DEEP REPAIR[/]" : "[bold red]DEEP REPAIR BLOCKED[/]");
+                AnsiConsole.MarkupLine(Markup.Escape(result.Message));
+                if (result.BranchName is not null) AnsiConsole.MarkupLine($"Branch: [yellow]{Markup.Escape(result.BranchName)}[/]");
+                if (result.Verification is not null) ConsoleRenderer.RenderVerification(result.Verification);
+                Environment.ExitCode = result.Started && result.Verification?.Passed == true ? 0 : 2;
+                return;
+            }
+            Environment.ExitCode = await ExecuteDoctorFlowAsync(dir, projectChecks, fileSystem, true, true, isDryRun, false, showProjectProfile: true, machineMode: false);
+        }, pathOption, repairDryRunOption, deepRepairOption);
+        rootCommand.Add(repairCommand);
+
+        var verifyCommand = new Command("verify", "Restore dependencies and prove the detected build, lint, typecheck, and test commands pass");
+        verifyCommand.SetHandler(async (DirectoryInfo? targetDir) =>
+        {
+            var dir = targetDir?.FullName ?? Directory.GetCurrentDirectory();
+            var name = Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            ConsoleRenderer.RenderHeader(string.IsNullOrEmpty(name) ? "workspace" : name, AppInfo.Version);
+            ConsoleRenderer.RenderProjectProfile(await new ProjectDetector(fileSystem).DetectAsync(dir));
+            var verification = await new ProjectVerifier(fileSystem, processRunner).VerifyAsync(dir);
+            ConsoleRenderer.RenderVerification(verification);
+            Environment.ExitCode = verification.Passed ? 0 : 2;
+        }, pathOption);
+        rootCommand.Add(verifyCommand);
 
         var versionsCommand = new Command("versions", "Run runtime version checks only (.NET, Node, Git)");
         versionsCommand.SetHandler(async (DirectoryInfo? targetDir) =>
         {
             var dir = targetDir?.FullName ?? Directory.GetCurrentDirectory();
-            Environment.ExitCode = await ExecuteDoctorFlowAsync(dir, versionChecks, false, false, false, false);
+            Environment.ExitCode = await ExecuteDoctorFlowAsync(dir, versionChecks, fileSystem, false, false, false, false, showProjectProfile: true, machineMode: false);
         }, pathOption);
         rootCommand.Add(versionsCommand);
 
@@ -108,7 +154,7 @@ public static class Program
         depsCommand.SetHandler(async (DirectoryInfo? targetDir) =>
         {
             var dir = targetDir?.FullName ?? Directory.GetCurrentDirectory();
-            Environment.ExitCode = await ExecuteDoctorFlowAsync(dir, dependencyChecks, false, false, false, false);
+            Environment.ExitCode = await ExecuteDoctorFlowAsync(dir, dependencyChecks, fileSystem, false, false, false, false, showProjectProfile: true, machineMode: false);
         }, pathOption);
         rootCommand.Add(depsCommand);
 
@@ -118,7 +164,7 @@ public static class Program
         reportCommand.SetHandler(async (DirectoryInfo? targetDir, bool exportMd) =>
         {
             var dir = targetDir?.FullName ?? Directory.GetCurrentDirectory();
-            Environment.ExitCode = await ExecuteReportCommandAsync(dir, allChecks, exportMd);
+            Environment.ExitCode = await ExecuteReportCommandAsync(dir, projectChecks, exportMd);
         }, pathOption, mdOption);
         rootCommand.Add(reportCommand);
 
@@ -128,7 +174,7 @@ public static class Program
         ciCommand.SetHandler(async (DirectoryInfo? targetDir, bool genBaseline) =>
         {
             var dir = targetDir?.FullName ?? Directory.GetCurrentDirectory();
-            Environment.ExitCode = await ExecuteCiCommandAsync(dir, allChecks, fileSystem, genBaseline);
+            Environment.ExitCode = await ExecuteCiCommandAsync(dir, projectChecks, fileSystem, processRunner, genBaseline);
         }, pathOption, generateBaselineOption);
         rootCommand.Add(ciCommand);
 
@@ -136,7 +182,7 @@ public static class Program
         onboardCommand.SetHandler(async (DirectoryInfo? targetDir) =>
         {
             var dir = targetDir?.FullName ?? Directory.GetCurrentDirectory();
-            Environment.ExitCode = await ExecuteOnboardCommandAsync(dir, allChecks, processRunner, fileSystem);
+            Environment.ExitCode = await ExecuteOnboardCommandAsync(dir, projectChecks, processRunner, fileSystem);
         }, pathOption);
         rootCommand.Add(onboardCommand);
 
@@ -157,6 +203,7 @@ public static class Program
         string projectDirectory,
         IReadOnlyList<IHealthCheck> checks,
         IFileSystem fileSystem,
+        IProcessRunner processRunner,
         bool generateBaseline)
     {
         var context = new CheckContext(projectDirectory);
@@ -185,7 +232,14 @@ public static class Program
 
         if (newRegressions.Count == 0)
         {
-            AnsiConsole.MarkupLine($"[green bold][[CI PASS]][/] All findings match accepted baseline ({baseline.AcceptedFindings.Count} accepted items). Zero new regressions.");
+            var verification = await new ProjectVerifier(fileSystem, processRunner).VerifyAsync(projectDirectory);
+            if (!verification.Passed)
+            {
+                AnsiConsole.MarkupLine("[red bold][[CI FAIL]][/] Project verification failed.");
+                ConsoleRenderer.RenderVerification(verification);
+                return 2;
+            }
+            AnsiConsole.MarkupLine($"[green bold][[CI PASS]][/] All findings match accepted baseline ({baseline.AcceptedFindings.Count} accepted items) and project verification passed.");
             return 0;
         }
 
@@ -274,10 +328,13 @@ public static class Program
     private static async Task<int> ExecuteDoctorFlowAsync(
         string projectDirectory,
         IReadOnlyList<IHealthCheck> checks,
+        IFileSystem fileSystem,
         bool isFix,
         bool isYes,
         bool isDryRun,
-        bool isJson)
+        bool isJson,
+        bool showProjectProfile,
+        bool machineMode)
     {
         var projectName = Path.GetFileName(projectDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         if (string.IsNullOrEmpty(projectName)) projectName = "workspace";
@@ -293,31 +350,43 @@ public static class Program
         }
 
         ConsoleRenderer.RenderHeader(projectName, AppInfo.Version);
-        ConsoleRenderer.RenderReport(report);
+        if (showProjectProfile)
+        {
+            var profile = await new ProjectDetector(fileSystem).DetectAsync(projectDirectory);
+            ConsoleRenderer.RenderProjectProfile(profile);
+        }
+        if (machineMode) ConsoleRenderer.RenderMachineReport(report);
+        else ConsoleRenderer.RenderReport(report);
 
         // Deduplicate fixes by their concrete Type to prevent double-applying the same operation
         var fixableExecutions = report.Executions
-            .Where(e => e.Result.Fix is not null && e.Result.Fix.CanApply())
-            .GroupBy(e => e.Result.Fix!.GetType())
-            .Select(g => g.First())
-            .ToList();
+            .Where(e => e.Result.Fix is not null && e.Result.Fix.CanApply());
+        if (machineMode)
+        {
+            fixableExecutions = fixableExecutions.GroupBy(e => e.Result.Fix!.GetType()).Select(g => g.First());
+        }
+        var fixableList = fixableExecutions.ToList();
 
-        if (fixableExecutions.Count == 0)
+        if (fixableList.Count == 0)
         {
             if (report.Executions.Any(e => e.Result.Fix is not null))
             {
-                AnsiConsole.MarkupLine("[grey]No safe User PATH changes are available. Remaining PATH findings may require manual System PATH administration.[/]");
+                AnsiConsole.MarkupLine(machineMode
+                    ? "[grey]No safe User PATH changes are available. Remaining PATH findings may require manual System PATH administration.[/]"
+                    : "[grey]No safe automatic project repairs are available for these findings.[/]");
             }
             return report.ExitCode;
         }
 
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine($"[bold blue]{fixableExecutions.Count} distinct auto-fixable operation(s) available.[/]");
+        AnsiConsole.MarkupLine($"[bold blue]{fixableList.Count} safe repair(s) available.[/]");
 
         if (isDryRun)
         {
-            AnsiConsole.MarkupLine("[bold yellow]=== Dry Run (No machine mutation will occur) ===[/]");
-            foreach (var execution in fixableExecutions)
+            AnsiConsole.MarkupLine(machineMode
+                ? "[bold yellow]=== Dry Run (No machine mutation will occur) ===[/]"
+                : "[bold yellow]=== Dry Run (No project files will be modified) ===[/]");
+            foreach (var execution in fixableList)
             {
                 var fix = execution.Result.Fix!;
                 AnsiConsole.MarkupLine($"[cyan bold]Check:[/] {Markup.Escape(execution.Check.Id)}");
@@ -329,7 +398,20 @@ public static class Program
 
         if (isFix)
         {
-            foreach (var execution in fixableExecutions)
+            if (!machineMode)
+            {
+                var projectFixes = fixableList.Select(e => e.Result.Fix).OfType<PuviDoctor.Core.Fixes.ProjectFileFix>().ToList();
+                if (projectFixes.Count > 0)
+                {
+                    await PuviDoctor.Core.Fixes.ProjectRepairService.ApplyAsync(projectDirectory, projectFixes);
+                    AnsiConsole.MarkupLine("[green bold][[REPAIRED]][/] Safe project repairs applied. Rechecking project state...");
+                    var verifiedReport = await new CheckRunner(checks).RunAllAsync(context);
+                    ConsoleRenderer.RenderReport(verifiedReport);
+                    return verifiedReport.ExitCode;
+                }
+            }
+
+            foreach (var execution in fixableList)
             {
                 var fix = execution.Result.Fix!;
                 AnsiConsole.MarkupLine($"\n[bold yellow]Target:[/] {Markup.Escape(execution.Check.Id)} - {Markup.Escape(fix.Describe())}");
@@ -349,14 +431,22 @@ public static class Program
         }
         else
         {
-            AnsiConsole.MarkupLine("[grey]Run with [yellow]--dry-run[/] to preview diff, or [green]--fix[/] to apply safely.[/]");
+            AnsiConsole.MarkupLine(machineMode
+                ? "[grey]Run with [yellow]machine --dry-run[/] to preview diff, or [green]machine --fix[/] to apply safely.[/]"
+                : "[grey]Run [green]hostfix repair[/] to apply every safe project repair, or [yellow]hostfix repair --dry-run[/] to preview changes.[/]");
         }
 
         return report.ExitCode;
     }
 
-    private static async Task<int> ExecuteRollbackAsync(IRegistryService registryService)
+    private static async Task<int> ExecuteRollbackAsync(string projectDirectory, IRegistryService registryService)
     {
+        if (await PuviDoctor.Core.Fixes.ProjectRepairService.RollbackLatestAsync(projectDirectory))
+        {
+            AnsiConsole.MarkupLine("[green bold][[ROLLED BACK]][/] Restored the latest project repair session.");
+            return 0;
+        }
+
         var latest = await FixJournalStore.GetLatestSessionAsync();
         if (latest is null || latest.BeforeUserPathSnapshot.RawValue is null)
         {
