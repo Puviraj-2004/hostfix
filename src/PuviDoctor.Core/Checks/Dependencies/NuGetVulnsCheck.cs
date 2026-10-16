@@ -24,13 +24,9 @@ public sealed class NuGetVulnsCheck : IHealthCheck
     {
         // Check if repo has a solution or csproj file
         var hasSln = _fileSystem.FileExists(IOPath.Combine(context.ProjectRootDirectory, "global.json")) ||
-                     _fileSystem.FileExists(IOPath.Combine(context.ProjectRootDirectory, "PuviDoctor.slnx")) ||
-                     _fileSystem.FileExists(IOPath.Combine(context.ProjectRootDirectory, "PuviDoctor.sln"));
-
-        if (!hasSln && context.ProjectRootDirectory.EndsWith("puvi-doctor", StringComparison.OrdinalIgnoreCase))
-        {
-            hasSln = true;
-        }
+                     _fileSystem.GetFiles(context.ProjectRootDirectory, "*.slnx").Any() ||
+                     _fileSystem.GetFiles(context.ProjectRootDirectory, "*.sln").Any() ||
+                     _fileSystem.GetFiles(context.ProjectRootDirectory, "*.csproj").Any();
 
         if (!hasSln)
         {
@@ -51,9 +47,10 @@ public sealed class NuGetVulnsCheck : IHealthCheck
         ProcessOutput output;
         try
         {
-            output = await _processRunner.ExecuteAsync(
+            output = await _processRunner.ExecuteInDirectoryAsync(
                 "dotnet",
                 ["list", "package", "--vulnerable", "--include-transitive"],
+                context.ProjectRootDirectory,
                 cancellationToken
             );
         }

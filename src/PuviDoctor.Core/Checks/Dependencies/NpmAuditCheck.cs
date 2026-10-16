@@ -44,7 +44,7 @@ public sealed class NpmAuditCheck : IHealthCheck
         }
 
         // 1. Run full npm audit --json
-        var fullOutput = await _processRunner.ExecuteAsync("npm", ["audit", "--json"], cancellationToken);
+        var fullOutput = await _processRunner.ExecuteInDirectoryAsync("npm", ["audit", "--json"], context.ProjectRootDirectory, cancellationToken);
         if (string.IsNullOrWhiteSpace(fullOutput.StandardOutput))
         {
             var reason = string.IsNullOrWhiteSpace(fullOutput.StandardError)
@@ -70,7 +70,7 @@ public sealed class NpmAuditCheck : IHealthCheck
         }
 
         // 2. Run npm audit --json --omit=dev to find true production vulnerabilities
-        var prodOutput = await _processRunner.ExecuteAsync("npm", ["audit", "--json", "--omit=dev"], cancellationToken);
+        var prodOutput = await _processRunner.ExecuteInDirectoryAsync("npm", ["audit", "--json", "--omit=dev"], context.ProjectRootDirectory, cancellationToken);
         if (!TryParseAuditSummary(prodOutput.StandardOutput, out var prodSummary))
         {
             return new CheckResult(CheckStatus.Warn, "npm audit could not classify production dependencies.", "Hostfix cannot confirm production dependency security until npm audit --omit=dev returns valid JSON.");
