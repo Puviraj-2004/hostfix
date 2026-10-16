@@ -9,8 +9,9 @@ namespace PuviDoctor.Cli.Rendering;
 /// </summary>
 public static class ConsoleRenderer
 {
-    public static void RenderHeader(string projectName, string version = "1.0.0")
+    public static void RenderHeader(string projectName, string? version = null)
     {
+        version ??= AppInfo.Version;
         AnsiConsole.MarkupLine($"[bold blue]hostfix v{version}[/] | project: [yellow]{Markup.Escape(projectName)}[/]");
         AnsiConsole.WriteLine();
     }

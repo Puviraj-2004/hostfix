@@ -15,7 +15,7 @@ public static class MarkdownRenderer
         sb.AppendLine($"# Workspace Health Report (hostfix): {projectName}");
         sb.AppendLine();
         sb.AppendLine($"- **Generated At:** {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
-        sb.AppendLine($"- **Hostfix Version:** v1.0.0");
+        sb.AppendLine($"- **Hostfix Version:** v{AppInfo.Version}");
         sb.AppendLine($"- **Health Score:** `{report.Score}/{report.MaxScore}`");
         sb.AppendLine($"- **Exit Code:** `{report.ExitCode}`");
         sb.AppendLine();

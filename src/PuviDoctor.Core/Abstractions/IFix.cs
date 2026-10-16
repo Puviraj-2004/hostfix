@@ -7,6 +7,11 @@ namespace PuviDoctor.Core.Abstractions;
 public interface IFix
 {
     /// <summary>
+    /// True only when this fix would make a real change to the machine.
+    /// </summary>
+    bool CanApply();
+
+    /// <summary>
     /// Human-readable explanation shown before anything mutates.
     /// </summary>
     string Describe();

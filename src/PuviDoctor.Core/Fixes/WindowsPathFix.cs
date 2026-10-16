@@ -30,6 +30,13 @@ public sealed partial class WindowsPathFix : IFix
         return "Sanitize Windows User PATH: remove non-existent directories and duplicate entries, preserving variable expansions.";
     }
 
+    public bool CanApply()
+    {
+        var snapshot = _registryService.GetUserPathSnapshot();
+        return !string.IsNullOrWhiteSpace(snapshot.RawValue) &&
+               !string.Equals(snapshot.RawValue, ComputeCleanedPath(snapshot.RawValue), StringComparison.Ordinal);
+    }
+
     public string DryRun()
     {
         var snapshot = _registryService.GetUserPathSnapshot();
@@ -39,6 +46,11 @@ public sealed partial class WindowsPathFix : IFix
         }
 
         var cleanedPath = ComputeCleanedPath(snapshot.RawValue);
+
+        if (string.Equals(snapshot.RawValue, cleanedPath, StringComparison.Ordinal))
+        {
+            return "No changes needed: User PATH is already clean. Remaining PATH findings may belong to the System PATH and require manual administrator action.";
+        }
 
         return $"""
         === Dry Run PATH Diff ===
@@ -124,6 +136,13 @@ public sealed partial class WindowsPathFix : IFix
             // If the path contains ANY unexpanded environment variable (e.g. %USERPROFILE% or C:\tools\%BIN%),
             // it MUST be preserved because it cannot be statically verified without context.
             if (ContainsEnvVariableRegex().IsMatch(trimmed))
+            {
+                keptEntries.Add(trimmed);
+                continue;
+            }
+
+            // Network locations cannot be reliably checked while offline. Preserve them.
+            if (trimmed.StartsWith(@"\\", StringComparison.Ordinal))
             {
                 keptEntries.Add(trimmed);
                 continue;

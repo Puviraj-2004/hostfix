@@ -47,9 +47,13 @@ public sealed class NpmAuditCheck : IHealthCheck
         var fullOutput = await _processRunner.ExecuteAsync("npm", ["audit", "--json"], cancellationToken);
         if (string.IsNullOrWhiteSpace(fullOutput.StandardOutput))
         {
+            var reason = string.IsNullOrWhiteSpace(fullOutput.StandardError)
+                ? "npm returned no JSON output. Check network access and the npm registry."
+                : $"npm failed: {fullOutput.StandardError.Trim()}";
             return new CheckResult(
                 CheckStatus.Warn,
-                "npm audit returned empty response. Is npm registry accessible?"
+                "npm audit could not produce a vulnerability report.",
+                reason
             );
         }
 

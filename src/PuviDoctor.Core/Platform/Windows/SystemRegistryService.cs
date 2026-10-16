@@ -24,6 +24,10 @@ public sealed class SystemRegistryService : IRegistryService
         }
 
         var value = key.GetValue(PathValueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames) as string;
+        if (value is null)
+        {
+            return new RegistryPathSnapshot(null, SnapshotRegistryKind.String);
+        }
         var winKind = key.GetValueKind(PathValueName);
 
         var domainKind = winKind == Win32RegistryValueKind.ExpandString

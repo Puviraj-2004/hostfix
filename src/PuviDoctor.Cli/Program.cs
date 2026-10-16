@@ -266,7 +266,7 @@ public static class Program
             return 0;
         }
 
-        ConsoleRenderer.RenderHeader(projectName, "1.0.0");
+        ConsoleRenderer.RenderHeader(projectName, AppInfo.Version);
         ConsoleRenderer.RenderReport(report);
         return report.ExitCode;
     }
@@ -292,17 +292,24 @@ public static class Program
             return report.ExitCode;
         }
 
-        ConsoleRenderer.RenderHeader(projectName, "1.0.0");
+        ConsoleRenderer.RenderHeader(projectName, AppInfo.Version);
         ConsoleRenderer.RenderReport(report);
 
         // Deduplicate fixes by their concrete Type to prevent double-applying the same operation
         var fixableExecutions = report.Executions
-            .Where(e => e.Result.Fix is not null)
+            .Where(e => e.Result.Fix is not null && e.Result.Fix.CanApply())
             .GroupBy(e => e.Result.Fix!.GetType())
             .Select(g => g.First())
             .ToList();
 
-        if (fixableExecutions.Count == 0) return report.ExitCode;
+        if (fixableExecutions.Count == 0)
+        {
+            if (report.Executions.Any(e => e.Result.Fix is not null))
+            {
+                AnsiConsole.MarkupLine("[grey]No safe User PATH changes are available. Remaining PATH findings may require manual System PATH administration.[/]");
+            }
+            return report.ExitCode;
+        }
 
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine($"[bold blue]{fixableExecutions.Count} distinct auto-fixable operation(s) available.[/]");
