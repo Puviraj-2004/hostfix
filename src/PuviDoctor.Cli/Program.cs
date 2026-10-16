@@ -117,7 +117,9 @@ public static class Program
             var dir = targetDir?.FullName ?? Directory.GetCurrentDirectory();
             if (deep)
             {
-                var result = await new DeepRepairService(fileSystem, processRunner).RunAsync(dir);
+                AnsiConsole.MarkupLine("[bold blue]DEEP REPAIR:[/] Checking Git state, creating an isolated branch, and attempting non-breaking dependency repair. This can take a few minutes.");
+                using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+                var result = await new DeepRepairService(fileSystem, processRunner).RunAsync(dir, timeout.Token);
                 AnsiConsole.MarkupLine(result.Started ? "[bold blue]DEEP REPAIR[/]" : "[bold red]DEEP REPAIR BLOCKED[/]");
                 AnsiConsole.MarkupLine(Markup.Escape(result.Message));
                 if (result.BranchName is not null) AnsiConsole.MarkupLine($"Branch: [yellow]{Markup.Escape(result.BranchName)}[/]");
