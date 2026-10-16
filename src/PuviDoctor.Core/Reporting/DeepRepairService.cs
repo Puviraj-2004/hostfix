@@ -25,7 +25,9 @@ public sealed class DeepRepairService(IFileSystem fileSystem, IProcessRunner pro
                 await processRunner.ExecuteInDirectoryAsync("npm", ["audit", "fix"], projectRoot, cancellationToken);
             }
 
-            var verification = await new ProjectVerifier(fileSystem, processRunner).VerifyAsync(projectRoot, cancellationToken);
+            var verification = await new ProjectVerifier(fileSystem, processRunner).VerifyAsync(
+                projectRoot,
+                cancellationToken: cancellationToken);
             return new(true, verification.Passed ? "Deep repair branch is verified and ready for review." : "Deep repair branch was created, but verification still fails. Your original branch remains untouched.", branch, verification);
         }
         catch (OperationCanceledException)

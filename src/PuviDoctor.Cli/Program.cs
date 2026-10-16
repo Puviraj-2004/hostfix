@@ -138,7 +138,14 @@ public static class Program
             var name = Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
             ConsoleRenderer.RenderHeader(string.IsNullOrEmpty(name) ? "workspace" : name, AppInfo.Version);
             ConsoleRenderer.RenderProjectProfile(await new ProjectDetector(fileSystem).DetectAsync(dir));
-            var verification = await new ProjectVerifier(fileSystem, processRunner).VerifyAsync(dir);
+            AnsiConsole.MarkupLine("[bold blue]Starting project verification...[/]");
+            AnsiConsole.MarkupLine("[grey]This can take a few minutes. Hostfix will show each stage as it completes.[/]");
+            AnsiConsole.WriteLine();
+            var verification = await new ProjectVerifier(fileSystem, processRunner).VerifyAsync(
+                dir,
+                ConsoleRenderer.RenderVerificationStepStarted,
+                ConsoleRenderer.RenderVerificationStepCompleted);
+            AnsiConsole.WriteLine();
             ConsoleRenderer.RenderVerification(verification);
             Environment.ExitCode = verification.Passed ? 0 : 2;
         }, pathOption);

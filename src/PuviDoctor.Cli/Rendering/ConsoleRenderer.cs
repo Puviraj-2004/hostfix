@@ -115,6 +115,17 @@ public static class ConsoleRenderer
         if (report.Steps.Count == 0) AnsiConsole.MarkupLine("  [yellow][[REVIEW]][/] No supported build or verification commands were detected.");
     }
 
+    public static void RenderVerificationStepStarted(string name) =>
+        AnsiConsole.MarkupLine($"  [blue]▶[/] Running: [bold]{Markup.Escape(name)}[/]...");
+
+    public static void RenderVerificationStepCompleted(VerificationStep step)
+    {
+        var icon = step.Passed ? "✓" : "✗";
+        var color = step.Passed ? "green" : "red";
+        var outcome = step.Passed ? "passed" : "failed";
+        AnsiConsole.MarkupLine($"  [{color}]{icon}[/] {Markup.Escape(step.Name)} {outcome}.");
+    }
+
     private static void RenderPriorityGroup(string title, IReadOnlyList<CheckExecutionResult> executions, string color)
     {
         if (executions.Count == 0) return;
