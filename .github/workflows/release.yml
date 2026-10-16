@@ -91,6 +91,7 @@ jobs:
     - name: Upload Release Artifacts
       uses: softprops/action-gh-release@v2
       with:
+        prerelease: ${{ contains(github.ref_name, '-') }}
         files: |
           dist/${{ matrix.binary }}
           dist/${{ matrix.binary }}.sha256
