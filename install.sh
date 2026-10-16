@@ -4,6 +4,11 @@ set -euo pipefail
 echo "Installing hostfix CLI..."
 
 REPO="Puviraj-2004/hostfix"
+TAG="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p' | head -n 1)"
+if [ -z "$TAG" ]; then
+    echo "Error: could not determine the latest hostfix release tag." >&2
+    exit 1
+fi
 OS="$(uname -s)"
 ARCH="$(uname -m)"
 
@@ -29,13 +34,13 @@ fi
 INSTALL_DIR="$HOME/.local/bin"
 mkdir -p "$INSTALL_DIR"
 
-URL="https://github.com/$REPO/releases/latest/download/$BINARY"
-CHECKSUM_URL="https://github.com/$REPO/releases/latest/download/$BINARY.sha256"
+URL="https://github.com/$REPO/releases/download/$TAG/$BINARY"
+CHECKSUM_URL="https://github.com/$REPO/releases/download/$TAG/$BINARY.sha256"
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-echo "Downloading the latest $BINARY release..."
+echo "Downloading $BINARY ($TAG)..."
 curl -f -sSL -o "$TMP_DIR/$BINARY" "$URL"
 curl -f -sSL -o "$TMP_DIR/$BINARY.sha256" "$CHECKSUM_URL"
 

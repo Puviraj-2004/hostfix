@@ -5,8 +5,13 @@ Write-Host "Installing hostfix CLI..." -ForegroundColor Cyan
 
 $repo = "Puviraj-2004/hostfix"
 $binaryName = "hostfix-win-x64.exe"
-$releaseUrl = "https://github.com/$repo/releases/latest/download/$binaryName"
-$checksumUrl = "https://github.com/$repo/releases/latest/download/$binaryName.sha256"
+$release = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/latest" -Headers @{ Accept = "application/vnd.github+json" }
+$tag = $release.tag_name
+if ([string]::IsNullOrWhiteSpace($tag)) {
+    throw "Could not determine the latest hostfix release tag."
+}
+$releaseUrl = "https://github.com/$repo/releases/download/$tag/$binaryName"
+$checksumUrl = "https://github.com/$repo/releases/download/$tag/$binaryName.sha256"
 
 $installDir = "$env:LOCALAPPDATA\Programs\hostfix"
 $targetExe = "$installDir\hostfix.exe"
@@ -18,7 +23,7 @@ if (!(Test-Path $installDir)) {
 }
 
 try {
-    Write-Host "Downloading the latest $binaryName release..." -ForegroundColor Yellow
+    Write-Host "Downloading $binaryName ($tag)..." -ForegroundColor Yellow
     Invoke-WebRequest -Uri $releaseUrl -OutFile $tempExe -UseBasicParsing
     Invoke-WebRequest -Uri $checksumUrl -OutFile $tempChecksum -UseBasicParsing
 
