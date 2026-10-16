@@ -33,14 +33,30 @@ public sealed class SystemProcessRunner : IProcessRunner
             }
         }
 
+        var isWindowsBatchShim = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) &&
+                                 resolvedFileName.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase);
+
         var startInfo = new ProcessStartInfo
         {
-            FileName = resolvedFileName,
+            // Starting a .cmd file directly with UseShellExecute=false is inconsistent across
+            // Windows hosts. Run it through cmd.exe so npm/npx/pnpm resolve exactly as they do
+            // in a user terminal.
+            FileName = isWindowsBatchShim
+                ? Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe"
+                : resolvedFileName,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true
         };
+
+        if (isWindowsBatchShim)
+        {
+            startInfo.ArgumentList.Add("/d");
+            startInfo.ArgumentList.Add("/s");
+            startInfo.ArgumentList.Add("/c");
+            startInfo.ArgumentList.Add(resolvedFileName);
+        }
 
         foreach (var arg in arguments)
         {
