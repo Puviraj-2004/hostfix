@@ -4,19 +4,17 @@
 [![Latest release](https://img.shields.io/github/v/release/Puviraj-2004/hostfix?label=latest%20release)](https://github.com/Puviraj-2004/hostfix/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-## Download hostfix
+## Install once, use in every project
 
-Download the binary for your computer. No .NET SDK or Node.js installation is required to run the standalone binaries.
+`hostfix` is a standalone CLI. You do **not** need to install .NET or Node.js to run it. Install it once; afterwards, open a terminal in any project and run `hostfix`.
 
-### Install in one command (recommended)
-
-**Windows Terminal / PowerShell**
+### Windows x64 — PowerShell
 
 ```powershell
 irm https://raw.githubusercontent.com/Puviraj-2004/hostfix/main/install.ps1 | iex
 ```
 
-The installer downloads the latest Windows release, verifies its SHA-256 checksum, adds `hostfix` to your User PATH, and keeps the executable at `%LOCALAPPDATA%\Programs\hostfix`.
+The installer downloads the latest Windows release, verifies its SHA-256 checksum, and adds `hostfix` to your **User PATH**. The executable is stored at `%LOCALAPPDATA%\Programs\hostfix\hostfix.exe`.
 
 Close and reopen Windows Terminal, then confirm the installation:
 
@@ -24,13 +22,31 @@ Close and reopen Windows Terminal, then confirm the installation:
 hostfix --help
 ```
 
-**Linux or macOS**
+### Linux x64 — Bash
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Puviraj-2004/hostfix/main/install.sh | bash
 ```
 
-This installs `hostfix` to `~/.local/bin`. Open a new terminal if your shell needs to reload its PATH.
+The installer installs `hostfix` to `~/.local/bin`, verifies its SHA-256 checksum, and adds that folder to your shell PATH when needed. Close and reopen the terminal, then run:
+
+```bash
+hostfix --help
+```
+
+### macOS Apple Silicon (M1/M2/M3/M4) — Terminal
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Puviraj-2004/hostfix/main/install.sh | bash
+```
+
+The installer installs `hostfix` to `~/.local/bin`, verifies its SHA-256 checksum, and updates your shell PATH when needed. Close and reopen Terminal, then run:
+
+```bash
+hostfix --help
+```
+
+> macOS Intel is not supported yet. macOS may ask for confirmation for an internet-downloaded app: open **System Settings → Privacy & Security** and select **Open Anyway** for hostfix.
 
 ### Download manually
 
@@ -42,55 +58,53 @@ This installs `hostfix` to `~/.local/bin`. Open a new terminal if your shell nee
 
 [View every release](https://github.com/Puviraj-2004/hostfix/releases)
 
-## Run it
+## Use it in any project
 
-### Windows
-
-1. Download `hostfix-win-x64.exe`.
-2. Open PowerShell in the folder where it was downloaded.
-3. Run:
-
-```powershell
-.\hostfix-win-x64.exe
-```
-
-To check another project, give its folder path:
-
-```powershell
-.\hostfix-win-x64.exe --path "C:\path\to\your\project"
-```
-
-### Linux
+Open Terminal, PowerShell, or your IDE terminal in the project's root folder:
 
 ```bash
-chmod +x hostfix-linux-x64
-./hostfix-linux-x64
+cd path/to/your-project
+hostfix
 ```
 
-### macOS (Apple Silicon)
+To check a project from somewhere else:
+
+```powershell
+hostfix --path "C:\path\to\your\project"
+```
 
 ```bash
-chmod +x hostfix-osx-arm64
-./hostfix-osx-arm64
+hostfix --path "/path/to/your/project"
 ```
 
-> macOS may block an app downloaded from the internet. If prompted, open **System Settings → Privacy & Security** and choose **Open Anyway** for hostfix.
+## Command reference
 
-## What to run
-
-Run hostfix from the root folder of the project you want to check.
-
-| Goal | Command after installation on PATH | Windows download command |
+| Goal | Command | What it does |
 | --- | --- | --- |
-| Check this project | `hostfix` | `.\hostfix-win-x64.exe` |
-| Preview safe project repairs | `hostfix repair --dry-run` | `.\hostfix-win-x64.exe repair --dry-run` |
-| Repair safe project setup issues | `hostfix repair` | `.\hostfix-win-x64.exe repair` |
-| Optional machine/PATH diagnostics | `hostfix machine` | `.\hostfix-win-x64.exe machine` |
-| Check Node, .NET, and Git versions | `hostfix versions` | `.\hostfix-win-x64.exe versions` |
-| Check lockfiles and vulnerabilities | `hostfix deps` | `.\hostfix-win-x64.exe deps` |
-| Save a Markdown report | `hostfix report --md` | `.\hostfix-win-x64.exe report --md` |
-| Get JSON output for scripts | `hostfix --json` | `.\hostfix-win-x64.exe --json` |
-| Set up a fresh checkout | `hostfix onboard` | `.\hostfix-win-x64.exe onboard` |
+| Check this project | `hostfix` | Shows project-specific health issues and priorities. |
+| Verify it really works | `hostfix verify` | Restores dependencies, then runs detected build, lint, typecheck, and test commands with live progress. |
+| Check runtime versions | `hostfix versions` | Checks required Node.js, .NET, and Git versions. |
+| Check dependencies | `hostfix deps` | Checks lockfiles and reports npm/NuGet vulnerabilities. |
+| Preview safe fixes | `hostfix repair --dry-run` | Shows project file changes without modifying anything. |
+| Apply safe fixes | `hostfix repair` | Repairs deterministic project setup files and re-checks the project. |
+| Try safe dependency repair | `hostfix repair --deep` | Creates an isolated Git branch, tries non-breaking dependency updates, then verifies it. |
+| Undo latest safe repair | `hostfix rollback` | Restores the last Hostfix repair session. |
+| Create a Markdown report | `hostfix report --md` | Writes `HOSTFIX_REPORT.md` in the target project. |
+| Script-friendly result | `hostfix --json` | Outputs the default health report as JSON. |
+| Set up a new checkout | `hostfix onboard` | Runs diagnostics, applies safe fixes, and restores dependencies. |
+| CI regression check | `hostfix ci` | Fails CI only for issues newer than `.hostfix.baseline.json`. |
+| Create CI baseline | `hostfix ci --generate-baseline` | Records current accepted issues as the initial baseline. |
+| Machine PATH diagnostics | `hostfix machine` | Optional Windows User PATH analysis; not part of normal project checking. |
+| Preview PATH cleanup | `hostfix machine --dry-run` | Shows safe User PATH changes without applying them. |
+| Apply PATH cleanup | `hostfix machine --fix` | Applies safe Windows User PATH cleanup after confirmation. |
+| Apply PATH cleanup without prompts | `hostfix machine --fix --yes` | Same as above, for scripted use. |
+
+Use help any time:
+
+```bash
+hostfix --help
+hostfix repair --help
+```
 
 ## Fix machine PATH problems safely (Windows only)
 
@@ -99,19 +113,19 @@ Run hostfix from the root folder of the project you want to check.
 hostfix only changes your machine when you explicitly ask it to. First preview the change:
 
 ```powershell
-.\hostfix-win-x64.exe machine --dry-run
+hostfix machine --dry-run
 ```
 
 Apply the suggested safe PATH cleanup:
 
 ```powershell
-.\hostfix-win-x64.exe machine --fix
+hostfix machine --fix
 ```
 
 hostfix creates a backup before changing the Windows User PATH. Undo the most recent cleanup with:
 
 ```powershell
-.\hostfix-win-x64.exe rollback
+hostfix rollback
 ```
 
 ## Use it in CI
